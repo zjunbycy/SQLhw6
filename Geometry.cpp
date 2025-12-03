@@ -153,6 +153,8 @@ namespace hw6 {
 		return NOT_IMPLEMENT;
 	}
 
+
+
 	double LineString::distance(const Polygon* polygon) const {
 		// TODO
 		return NOT_IMPLEMENT;

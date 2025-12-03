@@ -12,7 +12,7 @@
 
 - 标记为 `[[optional]]` 的是附加题扩展要求
 
-## Geometry.cpp
+## Geometry.cpp  叶晨宇
 
 ```cpp
 double Point::distance(const LineString *line) const;
@@ -36,7 +36,7 @@ double LineString::distance(const Polygon *polygon) const
 bool Polygon::intersects(const Envelope &rect) const
 ```
 
-## QuadTree.cpp
+## QuadTree.cpp   叶晨宇
 
 ```cpp
 void QuadNode::split(size_t capacity);
@@ -61,7 +61,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 实现点、线和多边形的k最邻近几何特征查询（k-NN）查询，可以交互调整k的值
 ```
 
-## QuadTreeTest.cpp
+## QuadTreeTest.cpp   叶晨宇
 
 - 用于对 `QuadTree` 进行测试和性能分析
 
@@ -70,7 +70,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 void QuadTree::analyse(); // 用于与R树进行比较，选择此扩展项需要同时实现R树的analyse()
 ```
 
-## RTree.cpp
+## RTree.cpp   李晨硕
 
 
 ```cpp
@@ -93,7 +93,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 实现点、线和多边形的k最邻近几何特征查询（k-NN）查询，可以交互调整k的值
 ```
 
-## RTreeTest.cpp
+## RTreeTest.cpp    李晨硕
 
 - 用于对 `RTree` 进行测试和性能分析
 
@@ -106,11 +106,11 @@ static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此
 
 
 ```cpp
-void rangeQuery(); //精准判断去重
-void NNQuery(hw6::Point p);  //精准判断去重
+void rangeQuery(); //精准判断去重               叶晨宇
+void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
 ```
 
-## [[optional]] BPlusTree.cpp
+## [[optional]] BPlusTree.cpp                  李晨硕（？，如果太多了看看能否一起做）
 
 - 基于空间填充曲线的B+Tree，代码文件需要自己创建
 
