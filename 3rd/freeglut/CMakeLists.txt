@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0.0 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.16)
 PROJECT(freeglut C)
 
 # for multiarch LIBDIR support (requires cmake>=2.8.8)
