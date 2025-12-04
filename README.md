@@ -15,25 +15,25 @@
 ## Geometry.cpp  叶晨宇
 
 ```cpp
-double Point::distance(const LineString *line) const;
-double Point::distance(const Polygon *polygon) const;
+√double Point::distance(const LineString *line) const;
+√double Point::distance(const Polygon *polygon) const;
 
-bool Envelope::contain(const Envelope &envelope) const;
-bool Envelope::intersect(const Envelope &envelope) const;
-Envelope Envelope::unionEnvelope(const Envelope &envelope) const;
+√bool Envelope::contain(const Envelope &envelope) const;
+√bool Envelope::intersect(const Envelope &envelope) const;
+√Envelope Envelope::unionEnvelope(const Envelope &envelope) const;
 
 // 以下是附加题扩展要求
 [[optional]] 
 自行实现 Polygon 的内环几何数据存储，并修改 Point 到 Polygon 的欧式距离计算
 [[optional]]
-double LineString::distance(const LineString *line) const
+√double LineString::distance(const LineString *line) const
 [[optional]]
-double LineString::distance(const Polygon *polygon) const
+√double LineString::distance(const Polygon *polygon) const
 [[optional]] 
 添加 MultiPoint、MultiLineString 和 MultiPolygon 类，同时给出正确性的证明
 
 [[optional]]
-bool Polygon::intersects(const Envelope &rect) const
+√bool Polygon::intersects(const Envelope &rect) const
 ```
 
 ## QuadTree.cpp   叶晨宇
@@ -110,7 +110,7 @@ void rangeQuery(); //精准判断去重               叶晨宇
 void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
 ```
 
-## [[optional]] BPlusTree.cpp                  李晨硕（？，如果太多了看看能否一起做）
+## [[optional]] BPlusTree.cpp                  李晨硕、叶晨宇
 
 - 基于空间填充曲线的B+Tree，代码文件需要自己创建
 
