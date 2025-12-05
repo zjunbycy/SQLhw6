@@ -39,14 +39,14 @@
 ## QuadTree.cpp   叶晨宇
 
 ```cpp
-void QuadNode::split(size_t capacity);
-bool QuadTree::constructTree(const std::vector<Feature> &features);
+√void QuadNode::split(size_t capacity);
+√bool QuadTree::constructTree(const std::vector<Feature> &features);
 
-void QuadNode::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
-void QuadTree::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
-bool QuadTree::NNQuery(double x, double y, std::vector<Feature> &features);
+√void QuadNode::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
+√void QuadTree::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
+√bool QuadTree::NNQuery(double x, double y, std::vector<Feature> &features);
 QuadNode *QuadNode::pointInLeafNode(double x, double y);
-QuadNode *QuadTree::pointInLeafNode(double x, double y);
+√QuadNode *QuadTree::pointInLeafNode(double x, double y);
 
 自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
 
