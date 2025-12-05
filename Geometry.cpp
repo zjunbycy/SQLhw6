@@ -50,6 +50,31 @@ namespace hw6 {
 		glEnd();
 	}
 
+
+	/*
+	 * 封装一个辅助函数
+	 */
+	double pointToSegmentDistance(double px, double py, double x1, double y1, double x2, double y2) {
+		double dx = x2 - x1;
+		double dy = y2 - y1;
+		double len2 = dx * dx + dy * dy;
+
+		if (len2 == 0) { // Segment degenerates to a point
+			return sqrt(pow(px - x1, 2) + pow(py - y1, 2));
+		}
+
+		// Projection parameter t, clamped to [0, 1]
+		double t = ((px - x1) * dx + (py - y1) * dy) / len2;
+		t = std::max(0.0, std::min(1.0, t));
+
+		// Projected point coordinates
+		double proj_x = x1 + t * dx;
+		double proj_y = y1 + t * dy;
+
+		// Calculate distance
+		return sqrt(pow(px - proj_x, 2) + pow(py - proj_y, 2));
+	}
+
 	/*
 	 * Points functions
 	 */
@@ -69,28 +94,9 @@ namespace hw6 {
 			// Task calculate the distance between Point P(x, y) and Line [P1(x1,
 			// y1), P2(x2, y2)] (less than 10 lines)
 			// TODO
-			// 计算点(x,y)到线段[x1,y1,x2,y2]的距离
-			double dx = x2 - x1;
-			double dy = y2 - y1;
-			double len2 = dx * dx + dy * dy;
-			if (len2 == 0) { // 线段退化为点
-				mindist = std::min(mindist, sqrt(pow(x - x1, 2) + pow(y - y1, 2)));
-				continue;
-			}
-
-			// 投影参数t
-			double t = ((x - x1) * dx + (y - y1) * dy) / len2;
-			t = std::max(0.0, std::min(1.0, t));
-
-			// 投影点坐标
-			double proj_x = x1 + t * dx;
-			double proj_y = y1 + t * dy;
-
-			// 计算距离
-			double dist = sqrt(pow(x - proj_x, 2) + pow(y - proj_y, 2));
-
-			if (dist < mindist)
-				mindist = dist;
+			double dist_seg = pointToSegmentDistance(this->x, this->y, x1, y1, x2, y2);
+			if (dist_seg < mindist)
+				mindist = dist_seg;
 		}
 		return mindist;
 	}
@@ -150,14 +156,75 @@ namespace hw6 {
 
 	double LineString::distance(const LineString* line) const {
 		// TODO
-		return NOT_IMPLEMENT;
+		// 处理空线串边界情况
+		if (this->numPoints() < 2 && line->numPoints() < 2) return 0.0;
+		if (this->numPoints() == 1 && line->numPoints() == 1) return this->getPointN(0).distance(&line->getPointN(0));
+		if (this->numPoints() == 1) return this->getPointN(0).distance(line);
+		if (line->numPoints() == 1) return line->getPointN(0).distance(this);
+
+		// 初始化最短距离为无穷大
+		double min_dist = INFINITY;
+
+		// 遍历当前线串的每个线段
+		for (size_t i = 0; i < this->numPoints() - 1; ++i) {
+			double xA1 = this->getPointN(i).getX();
+			double yA1 = this->getPointN(i).getY();
+			double xA2 = this->getPointN(i + 1).getX();
+			double yA2 = this->getPointN(i + 1).getY();
+
+			// 遍历目标线串的每个线段
+			for (size_t j = 0; j < line->numPoints() - 1; ++j) {
+				double xB1 = line->getPointN(j).getX();
+				double yB1 = line->getPointN(j).getY();
+				double xB2 = line->getPointN(j + 1).getX();
+				double yB2 = line->getPointN(j + 1).getY();
+
+				// 计算两个线段的最短距离 (发生在端点到另一条线段上)
+				double d1 = pointToSegmentDistance(xA1, yA1, xB1, yB1, xB2, yB2); // segA起点到segB的距离
+				double d2 = pointToSegmentDistance(xA2, yA2, xB1, yB1, xB2, yB2); // segA终点到segB的距离
+				double d3 = pointToSegmentDistance(xB1, yB1, xA1, yA1, xA2, yA2); // segB起点到segA的距离
+				double d4 = pointToSegmentDistance(xB2, yB2, xA1, yA1, xA2, yA2); // segB终点到segA的距离
+
+				double seg_min = std::min({ d1, d2, d3, d4 });
+
+				// 更新全局最短距离
+				if (seg_min < min_dist) {
+					min_dist = seg_min;
+				}
+			}
+		}
+
+		return (min_dist == INFINITY) ? 0.0 : min_dist;
 	}
 
 
 
 	double LineString::distance(const Polygon* polygon) const {
 		// TODO
-		return NOT_IMPLEMENT;
+		// 1. 获取线串到多边形外环的距离 (如果相交，距离为0)
+		double min_dist = this->distance(&polygon->getExteriorRing());
+
+		if (min_dist == 0.0) {
+			return 0.0; // 相交，距离为0
+		}
+
+		// 2. 检查线串是否完全在多边形内部 (如果完全在内部且不相交，距离为0)
+		// 遍历所有顶点，如果任一点在外部，则线串不完全在内部。
+		bool all_inside = true;
+		for (size_t i = 0; i < this->numPoints(); ++i) {
+			// Point::distance(polygon) == 0.0 表示点在内部或边界上
+			if (this->getPointN(i).distance(polygon) > 0.0) {
+				all_inside = false;
+				break;
+			}
+		}
+
+		if (all_inside) {
+			return 0.0;
+		}
+
+		// 3. 如果不相交，且不完全在内部，则最小距离就是线串到外环的最小距离
+		return min_dist;
 	}
 
 	typedef int OutCode;
@@ -315,7 +382,42 @@ namespace hw6 {
 
 	bool Polygon::intersects(const Envelope& rect) const {
 		// TODO
-		return true;
+		// 1. Polygon的MBR与rect相交
+		if (!this->getEnvelope().intersect(rect)) {
+			return false;
+		}
+
+		// 2. Polygon的边界（外环）与rect的边界相交
+		if (exteriorRing.intersects(rect)) {
+			return true;
+		}
+
+		// 3. Polygon包含rect (任一rect角点在Polygon内)
+		double rx_min = rect.getMinX();
+		double rx_max = rect.getMaxX();
+		double ry_min = rect.getMinY();
+		double ry_max = rect.getMaxY();
+
+		Point p1(rx_min, ry_min);
+		Point p2(rx_max, ry_min);
+		Point p3(rx_max, ry_max);
+		Point p4(rx_min, ry_max);
+
+		// Point::distance(this) == 0.0 表示点在 Polygon 内部或边界
+		if (p1.distance(this) == 0.0 || p2.distance(this) == 0.0 ||
+			p3.distance(this) == 0.0 || p4.distance(this) == 0.0) {
+			return true;
+		}
+
+		// 4. rect包含Polygon (任一Polygon点在rect内)
+		// 检查Polygon的任一顶点是否在rect内部
+		for (size_t i = 0; i < exteriorRing.numPoints(); ++i) {
+			if (exteriorRing.getPointN(i).intersects(rect)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	void Polygon::draw() const { exteriorRing.draw(); }
