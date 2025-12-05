@@ -30,10 +30,10 @@ namespace hw6 {
 		Envelope SE_bbox(midX, bbox.getMaxX(), bbox.getMinY(), midY);
 
 		// 2. 初始化四个子节点 (它们都是叶子节点)
-		children[NW] = new QuadNode(NW_bbox);
-		children[NE] = new QuadNode(NE_bbox);
-		children[SW] = new QuadNode(SW_bbox);
-		children[SE] = new QuadNode(SE_bbox);
+		children[0] = new QuadNode(NW_bbox);
+		children[1] = new QuadNode(NE_bbox);
+		children[2] = new QuadNode(SW_bbox);
+		children[3] = new QuadNode(SE_bbox);
 
 		// 3. 将当前节点中的所有Feature重新分配给子节点
 		// 改进策略：
@@ -56,7 +56,7 @@ namespace hw6 {
 
 			if (containCount == 1) {
 				// 唯一被某个子节点完全包含，移动到该子节点
-				children[lastIndex]->addFeature(feature);
+				children[lastIndex]->add(feature);
 			}
 			else {
 				// 无子节点或多个子节点包含 -> 保留在父节点
@@ -77,24 +77,20 @@ namespace hw6 {
 	
 	}
 
-	// 增加：实现 insert 方法
-	void QuadNode::insert(const Feature& feature) {
-		// 如果 feature 的 MBR 不在当前节点 bbox 内，直接返回（上层应保证 root 覆盖所有 features）
+	void hw6::QuadNode::insert(const Feature& feature, size_t capacity) {
 		const Envelope& fe = feature.getEnvelope();
 		if (!bbox.contain(fe))
 			return;
 
-		// 若为叶子节点，尝试加入并根据 nodeCapacity 分裂
 		if (isLeafNode()) {
 			features.push_back(feature);
-			// 使用节点存储的 nodeCapacity，如果为 0 则不触发自动分裂（保持向后兼容）
-			if (nodeCapacity > 0 && features.size() > nodeCapacity) {
-				split(nodeCapacity);
+			// 使用传入的 capacity 参数
+			if (capacity > 0 && features.size() > capacity) {
+				split(capacity);
 			}
 			return;
 		}
 
-		// 非叶节点，尝试下推到唯一完全包含的子节点，否则保留在当前节点
 		int containCount = 0;
 		int lastIndex = -1;
 		for (int i = 0; i < 4; ++i) {
@@ -105,10 +101,8 @@ namespace hw6 {
 		}
 
 		if (containCount == 1) {
-			children[lastIndex]->insert(feature);
-		}
-		else {
-			// 无子节点或多个子节点包含 -> 存在于父节点
+			children[lastIndex]->insert(feature, capacity);
+		} else {
 			features.push_back(feature);
 		}
 	}
@@ -234,7 +228,7 @@ namespace hw6 {
 
 		// 4. 将所有 features 插入到根节点
 		for (const Feature& feature : features) {
-			root->insert(feature);
+			root->insert(feature,capacity);
 		}
 
 		// 兼容性：如果 insert 未触发任何分裂（根仍为叶子）且输入数量超过 capacity，则强制 split 一次
@@ -285,10 +279,16 @@ namespace hw6 {
 		// 1. 遍历四叉树所有节点，计算 min over features of maxDistance2Envelope(x,y)
 		double minMaxDist = std::numeric_limits<double>::infinity();
 
-		std::function<void(QuadNode*)> visit = [&](QuadNode* node) {
-			if (!node) return;
+		// 显式栈遍历所有节点（避免 std::function 递归）
+		std::vector<QuadNode*> stack;
+		stack.reserve(64);
+		stack.push_back(root);
 
-			// 处理当前节点存储的 features（父节点也可能保留若干 feature）
+		while (!stack.empty()) {
+			QuadNode* node = stack.back();
+			stack.pop_back();
+			if (!node) continue;
+
 			size_t fn = node->getFeatureNum();
 			for (size_t i = 0; i < fn; ++i) {
 				const Feature& f = node->getFeature(i);
@@ -296,21 +296,17 @@ namespace hw6 {
 				if (d < minMaxDist) minMaxDist = d;
 			}
 
-			// 递归子节点
 			if (!node->isLeafNode()) {
 				for (size_t i = 0; i < 4; ++i) {
 					QuadNode* c = node->getChildNode(i);
-					if (c) visit(c);
+					if (c) stack.push_back(c);
 				}
 			}
-			};
-
-		visit(root);
+		}
 
 		if (!std::isfinite(minMaxDist))
 			return false;
 
-		// 2. 用得到的最短最大距离构造查询矩形并用 rangeQuery 得到候选集
 		Envelope qbox(x - minMaxDist, x + minMaxDist, y - minMaxDist, y + minMaxDist);
 		rangeQuery(qbox, features);
 
