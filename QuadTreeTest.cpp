@@ -38,10 +38,14 @@ namespace hw6 {
 
 			clock_t start_time = clock();
 			// TODO
+			qtree->setCapacity(cap);
+			qtree->constructTree(features);
 			clock_t end_time = clock();
 
 			int height = 0, interiorNum = 0, leafNum = 0;
 			// TODO
+			qtree->countHeight(height);
+			qtree->countNode(interiorNum, leafNum);
 
 			cout << "Capacity " << cap << "\n";
 			cout << "Height: " << height
@@ -59,6 +63,7 @@ namespace hw6 {
 				qtree->NNQuery(x, y, candidateFeatures);
 				// refine step
 				// TODO
+				candidateFeatures.clear();
 			}
 			end_time = clock();
 			cout << "NNQuery time: " << (end_time - start_time) / 1000.0 << "s"
