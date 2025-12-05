@@ -67,7 +67,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 
 ```cpp
 [[optional]]
-void QuadTree::analyse(); // 用于与R树进行比较，选择此扩展项需要同时实现R树的analyse()
+√void QuadTree::analyse(); // 用于与R树进行比较，选择此扩展项需要同时实现R树的analyse()
 ```
 
 ## RTree.cpp   李晨硕
