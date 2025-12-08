@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include <unordered_set>
 
 #ifdef USE_RTREE
 #include "RTree.h"
@@ -239,6 +240,21 @@ void rangeQuery() {
 
 	// refine step (精确判断时，需要去重，避免查询区域和几何对象的重复计算)
 	// TODO
+	selectedFeatures.clear();
+	// 使用几何指针去重（同一几何可能在候选集中出现多次）
+	std::unordered_set<const hw6::Geometry*> seen;
+	seen.reserve(candidateFeatures.size() * 2);
+
+	for (const auto& f : candidateFeatures) {
+		const hw6::Geometry* g = f.getGeom();
+		if (!g) continue;
+		// 如果未见过该几何，则进行精确相交测试并加入结果
+		if (seen.insert(g).second) {
+			if (g->intersects(selectedRect)) {
+				selectedFeatures.push_back(f);
+			}
+		}
+	}
 }
 
 /*

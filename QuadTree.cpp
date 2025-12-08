@@ -1,5 +1,8 @@
 ﻿#include "QuadTree.h"
 #include <set>
+#include <unordered_set>
+#include <utility>
+#include <limits>
 
 namespace hw6 {
 
@@ -317,6 +320,56 @@ namespace hw6 {
 	void QuadTree::draw() {
 		if (root)
 			root->draw();
+	}
+
+	void QuadTree::spatialJoin(const std::vector<Feature>& A,
+		const std::vector<Feature>& B,
+		double dist,
+		std::vector<std::pair<Feature, Feature>>& result) {
+
+		result.clear();
+
+		if (A.empty() || B.empty())
+			return;
+
+		// 构建用于 B 的四叉树索引（局部临时）
+		QuadTree treeB(this->capacity);
+		treeB.setCapacity(this->capacity);
+		if (!treeB.constructTree(B)) {
+			// 若构建失败（例如 B 为空），直接返回
+			return;
+		}
+
+		std::vector<Feature> candidates;
+		candidates.reserve(64);
+
+		for (const Feature& a : A) {
+			// 扩展 a 的包围盒
+			const Envelope& eb = a.getEnvelope();
+			Envelope searchEnv(eb.getMinX() - dist, eb.getMaxX() + dist,
+				eb.getMinY() - dist, eb.getMaxY() + dist);
+
+			// filter: 用 treeB 获取与扩展矩形相交的候选集
+			treeB.rangeQuery(searchEnv, candidates);
+
+			// refine: 对候选集做精确距离判断，并去重（基于 Geometry 指针）
+			std::unordered_set<const Geometry*> seenB;
+			seenB.reserve(candidates.size() * 2);
+
+			for (const Feature& b : candidates) {
+				const Geometry* gb = b.getGeom();
+				const Geometry* ga = a.getGeom();
+				if (!ga || !gb) continue;
+
+				// 去重同一几何
+				if (!seenB.insert(gb).second) continue;
+
+				double d = ga->distance(gb);
+				if (d <= dist) {
+					result.emplace_back(a, b);
+				}
+			}
+		}
 	}
 
 } // namespace hw6
