@@ -74,11 +74,11 @@ mode == Polygon 实现多边形数据的最邻近查询
 
 
 ```cpp
-bool hw6::RTree::constructTree(const std::vector<Feature>& features)
+√bool hw6::RTree::constructTree(const std::vector<Feature>& features)
 
-void hw6::RNode::rangeQuery(const Envelope & rect, std::vector<Feature>& features);
-bool hw6::RTree::NNQuery(double x, double y, std::vector<Feature>& features)
-RNode* hw6::RNode::pointInLeafNode(double x, double y);
+√void hw6::RNode::rangeQuery(const Envelope & rect, std::vector<Feature>& features);
+√bool hw6::RTree::NNQuery(double x, double y, std::vector<Feature>& features)
+√RNode* hw6::RNode::pointInLeafNode(double x, double y);
 
 自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
 
