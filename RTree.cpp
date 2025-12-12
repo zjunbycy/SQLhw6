@@ -4,7 +4,7 @@ namespace hw6 {
 
 	// RNode 实现
 	void RNode::add(RNode* child) {
-		children[childrenNum] = child;
+		children.push_back(child);
 		child->parent = this;
 		++childrenNum;
 	}
@@ -14,10 +14,13 @@ namespace hw6 {
 			for (auto itr = features.begin(); itr != features.end(); ++itr)
 				if (itr->getName() == f.getName())
 					return itr;
+			return features.end();
 			}();
+		if (where != features.end()) {
 			features.erase(where);
-			if (features.empty())
-				features.shrink_to_fit(); // free memory unused but allocated
+		}
+		if (features.empty())
+			features.shrink_to_fit(); // free memory unused but allocated
 	}
 
 	void RNode::remove(RNode* child) {
@@ -25,7 +28,7 @@ namespace hw6 {
 			if (children[i] == child) {
 				--childrenNum;
 				std::swap(children[i], children[childrenNum]);
-				children[childrenNum] = nullptr;
+				children.pop_back();
 				break;
 			}
 	}
@@ -37,9 +40,10 @@ namespace hw6 {
 	}
 
 	RNode* RNode::popBackChildNode() {
+		if (childrenNum == 0) return nullptr;
 		--childrenNum;
 		auto ret = children[childrenNum];
-		children[childrenNum] = nullptr;
+		children.pop_back();
 		return ret;
 	}
 
@@ -90,9 +94,8 @@ namespace hw6 {
 		}
 		else {
 			// 内部节点：递归查询每个子节点
-			for (int i = 0; i < childrenNum; ++i) {
+			for (int i = 0; i < childrenNum; ++i)
 				children[i]->rangeQuery(rect, features);
-			}
 		}
 		// filter step (选择查询区域与几何对象包围盒相交的几何对象)
 		// 注意R树区域查询仅返回候选集，精炼步在hw6的rangeQuery中完成
@@ -455,6 +458,139 @@ namespace hw6 {
 		return !features.empty();
 	}
 
+	bool RTree::kNNQuery(double x, double y, int k, std::vector<Feature>& features) {
+		// [[optional]] k最邻近几何特征查询 (k-NN)
+		// 使用优先队列实现，按距离排序返回k个最近的几何特征
+		features.clear();
+		if (root == nullptr || k <= 0) return false;
+
+		// 使用优先队列存储候选特征，按距离排序（最大堆，用于保持k个最小距离）
+		// pair<距离, Feature>
+		auto cmp = [](const std::pair<double, Feature>& a, const std::pair<double, Feature>& b) {
+			return a.first < b.first; // 最大堆
+		};
+		std::priority_queue<std::pair<double, Feature>, 
+			std::vector<std::pair<double, Feature>>, decltype(cmp)> topK(cmp);
+
+		// 首先获取一个初始搜索半径
+		double searchRadius = std::numeric_limits<double>::max();
+		
+		// 遍历所有特征获取候选集
+		std::vector<Feature> allCandidates;
+		std::queue<RNode*> nodeQueue;
+		nodeQueue.push(root);
+		
+		while (!nodeQueue.empty()) {
+			RNode* node = nodeQueue.front();
+			nodeQueue.pop();
+			
+			if (node->isLeafNode()) {
+				for (size_t i = 0; i < node->getFeatureNum(); ++i) {
+					allCandidates.push_back(node->getFeature(i));
+				}
+			}
+			else {
+				for (int i = 0; i < node->getChildNum(); ++i) {
+					nodeQueue.push(node->getChildNode(i));
+				}
+			}
+		}
+
+		// 去重并计算精确距离
+		std::unordered_set<const Geometry*> seen;
+		Point queryPoint(x, y);
+		
+		for (const Feature& f : allCandidates) {
+			const Geometry* geom = f.getGeom();
+			if (!geom) continue;
+			if (!seen.insert(geom).second) continue;
+
+			double dist = geom->distance(&queryPoint);
+			
+			if (static_cast<int>(topK.size()) < k) {
+				topK.push(std::make_pair(dist, f));
+			}
+			else if (dist < topK.top().first) {
+				topK.pop();
+				topK.push(std::make_pair(dist, f));
+			}
+		}
+
+		// 从优先队列中提取结果（需要反转顺序）
+		std::vector<std::pair<double, Feature>> temp;
+		while (!topK.empty()) {
+			temp.push_back(topK.top());
+			topK.pop();
+		}
+		
+		// 按距离从小到大排序
+		for (auto it = temp.rbegin(); it != temp.rend(); ++it) {
+			features.push_back(it->second);
+		}
+
+		return !features.empty();
+	}
+
+	void RTree::spatialJoin(const std::vector<Feature>& A,
+		const std::vector<Feature>& B,
+		double dist,
+		std::vector<std::pair<Feature, Feature>>& result) {
+		
+		/*
+		 * Spatial Join 基于距离的空间关联
+		 * 正确性证明：
+		 * 1. Filter阶段：对于集合A中的每个几何对象a，将其包围盒扩展dist距离
+		 *    扩展后的包围盒 = [minX-dist, maxX+dist, minY-dist, maxY+dist]
+		 * 2. 使用R树索引在集合B中查找所有与扩展包围盒相交的几何对象作为候选集
+		 *    由于B中任何与a距离<=dist的对象b，其包围盒必然与a的扩展包围盒相交
+		 *    因此候选集不会遗漏任何满足条件的对
+		 * 3. Refine阶段：对候选集中的每个对象b，计算a和b的精确几何距离
+		 *    若距离<=dist，则(a,b)是满足条件的特征对
+		 * 4. 去重：使用指针集合避免同一几何对象重复计算
+		 */
+		
+		result.clear();
+
+		if (A.empty() || B.empty())
+			return;
+
+		// 构建用于 B 的R树索引（局部临时）
+		RTree treeB(this->maxChildren);
+		if (!treeB.constructTree(B)) {
+			return;
+		}
+
+		std::vector<Feature> candidates;
+		candidates.reserve(64);
+
+		for (const Feature& a : A) {
+			// 扩展 a 的包围盒
+			const Envelope& eb = a.getEnvelope();
+			Envelope searchEnv(eb.getMinX() - dist, eb.getMaxX() + dist,
+				eb.getMinY() - dist, eb.getMaxY() + dist);
+
+			// filter: 用 treeB 获取与扩展矩形相交的候选集
+			treeB.rangeQuery(searchEnv, candidates);
+
+			// refine: 对候选集做精确距离判断，并去重（基于 Geometry 指针）
+			std::unordered_set<const Geometry*> seenB;
+			seenB.reserve(candidates.size() * 2);
+
+			for (const Feature& b : candidates) {
+				const Geometry* gb = b.getGeom();
+				const Geometry* ga = a.getGeom();
+				if (!ga || !gb) continue;
+
+				// 去重同一几何
+				if (!seenB.insert(gb).second) continue;
+
+				double d = ga->distance(gb);
+				if (d <= dist) {
+					result.emplace_back(a, b);
+				}
+			}
+		}
+	}
 
 } // namespace hw6
 

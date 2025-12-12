@@ -1,4 +1,4 @@
-﻿// hw6.cpp : 定义控制台应用程序的入口点。
+// hw6.cpp : 定义控制台应用程序的入口点。
 //
 
 #include "Common.h"
@@ -12,12 +12,12 @@
 #include <cstdio>
 #include <ctime>
 #include <iostream>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
-#include <vector>
 #include <unordered_set>
-#include <filesystem> // 用于检查 shapefile 是否存在
+#include <vector>
 
 #ifdef USE_RTREE
 #include "RTree.h"
@@ -37,24 +37,26 @@ double pointSize = 2.0;
 
 int mode;
 
+// k-NN查询的k值，可通过键盘交互调整
+int kValue = 5;
+
 vector<hw6::Feature> features;
 vector<hw6::Feature> roads;
-vector<hw6::Feature> polygons; // 新增：多边形集合
+vector<hw6::Feature> polygons;  // [[optional]] 多边形数据
 bool showRoad = true;
 
 unique_ptr<hw6::Tree> pointTree;
 unique_ptr<hw6::Tree> roadTree;
-unique_ptr<hw6::Tree> polyTree; // 新增多边形树
+unique_ptr<hw6::Tree> polygonTree;  // [[optional]] 多边形R树
 bool showTree = false;
 
 hw6::Feature nearestFeature;
+vector<hw6::Feature> knnFeatures;  // [[optional]] k-NN查询结果
 
 bool firstPoint = true;
 hw6::Point corner[2];
 hw6::Envelope selectedRect;
 vector<hw6::Feature> selectedFeatures;
-
-int knn_k = 1; // k-NN 的 k 值，默认 1
 
 /*
  * shapefile文件中name和geometry属性读取
@@ -232,28 +234,6 @@ void loadTaxiData() {
 }
 
 /*
- * 读取多边形数据
- */
-void loadPolygonData() {
-	// 以 PROJ_SRC_DIR "/data/polygon" 为基名查找 shp 文件
-	std::string base = std::string(PROJ_SRC_DIR) + "/data/polygon.shp";
-	if (!std::filesystem::exists(base)) {
-		cout << "Polygon shapefile not found at " << base << "，请确认路径或将数据放置到 data/polygon.*" << endl;
-		return;
-	}
-
-	vector<hw6::Geometry*> geom = readGeom(PROJ_SRC_DIR "/data/polygon");
-	polygons.clear();
-	for (size_t i = 0; i < geom.size(); ++i)
-		polygons.push_back(hw6::Feature(to_string(i), geom[i]));
-
-	cout << "polygon number: " << geom.size() << endl;
-	polyTree = make_unique<TreeTy>();
-	polyTree->setCapacity(20);
-	polyTree->constructTree(polygons);
-}
-
-/*
  * 区域查询
  */
 void rangeQuery() {
@@ -264,22 +244,24 @@ void rangeQuery() {
 		pointTree->rangeQuery(selectedRect, candidateFeatures);
 	else if (mode == RANGELINE)
 		roadTree->rangeQuery(selectedRect, candidateFeatures);
+	else if (mode == RANGEPOLYGON && polygonTree)
+		polygonTree->rangeQuery(selectedRect, candidateFeatures);
 
 	// refine step (精确判断时，需要去重，避免查询区域和几何对象的重复计算)
-	// TODO
 	selectedFeatures.clear();
-	// 使用几何指针去重（同一几何可能在候选集中出现多次）
 	std::unordered_set<const hw6::Geometry*> seen;
 	seen.reserve(candidateFeatures.size() * 2);
 
-	for (const auto& f : candidateFeatures) {
-		const hw6::Geometry* g = f.getGeom();
-		if (!g) continue;
-		// 如果未见过该几何，则进行精确相交测试并加入结果
-		if (seen.insert(g).second) {
-			if (g->intersects(selectedRect)) {
-				selectedFeatures.push_back(f);
-			}
+	for (const hw6::Feature& f : candidateFeatures) {
+		const hw6::Geometry* geom = f.getGeom();
+		if (!geom) continue;
+
+		// 去重：同一几何对象只处理一次
+		if (!seen.insert(geom).second) continue;
+
+		// 精确判断几何对象是否与查询矩形相交
+		if (geom->intersects(selectedRect)) {
+			selectedFeatures.push_back(f);
 		}
 	}
 }
@@ -295,9 +277,53 @@ void NNQuery(hw6::Point p) {
 		pointTree->NNQuery(p.getX(), p.getY(), candidateFeatures);
 	else if (mode == NNLINE)
 		roadTree->NNQuery(p.getX(), p.getY(), candidateFeatures);
+	else if (mode == NNPOLYGON && polygonTree)
+		polygonTree->NNQuery(p.getX(), p.getY(), candidateFeatures);
 
 	// refine step (精确计算查询点与几何对象的距离)
-	// TODO
+	nearestFeature = hw6::Feature();
+	double minDist = std::numeric_limits<double>::max();
+	std::unordered_set<const hw6::Geometry*> seen;
+	seen.reserve(candidateFeatures.size() * 2);
+
+	for (const hw6::Feature& f : candidateFeatures) {
+		const hw6::Geometry* geom = f.getGeom();
+		if (!geom) continue;
+
+		// 去重：同一几何对象只处理一次
+		if (!seen.insert(geom).second) continue;
+
+		// 精确计算距离
+		double dist = f.distance(p.getX(), p.getY());
+		if (dist < minDist) {
+			minDist = dist;
+			nearestFeature = f;
+		}
+	}
+}
+
+/*
+ * [[optional]] k最邻近查询
+ */
+void kNNQuery(hw6::Point p) {
+	knnFeatures.clear();
+	
+#ifdef USE_RTREE
+	TreeTy* tree = nullptr;
+	if (mode == KNNPOINT)
+		tree = dynamic_cast<TreeTy*>(pointTree.get());
+	else if (mode == KNNLINE)
+		tree = dynamic_cast<TreeTy*>(roadTree.get());
+	else if (mode == KNNPOLYGON && polygonTree)
+		tree = dynamic_cast<TreeTy*>(polygonTree.get());
+	
+	if (tree) {
+		tree->kNNQuery(p.getX(), p.getY(), kValue, knnFeatures);
+	}
+#else
+	// QuadTree版本的k-NN（如果实现了的话）
+	// 这里可以添加QuadTree的k-NN实现
+#endif
 }
 
 /*
@@ -344,7 +370,7 @@ void display() {
 	}
 
 	// 点绘制
-	if (!(mode == RANGELINE || mode == NNLINE)) {
+	if (!(mode == RANGELINE || mode == NNLINE || mode == KNNLINE)) {
 		glPointSize((float)pointSize);
 		glColor3d(0.0, 146 / 255.0, 247 / 255.0);
 		for (size_t i = 0; i < features.size(); ++i)
@@ -354,7 +380,7 @@ void display() {
 	// 四叉树绘制
 	if (showTree) {
 		glColor3d(0.0, 146 / 255.0, 247 / 255.0);
-		if (mode == RANGELINE || mode == NNLINE)
+		if (mode == RANGELINE || mode == NNLINE || mode == KNNLINE)
 			roadTree->draw();
 		else
 			pointTree->draw();
@@ -375,8 +401,18 @@ void display() {
 		glLineWidth(1.0);
 	}
 
+	// [[optional]] k-NN结果绘制
+	if (mode == KNNPOINT || mode == KNNLINE || mode == KNNPOLYGON) {
+		glPointSize(5.0);
+		glLineWidth(3.0);
+		glColor3d(0.0, 0.8, 0.0);  // 绿色显示k-NN结果
+		for (size_t i = 0; i < knnFeatures.size(); ++i)
+			knnFeatures[i].draw();
+		glLineWidth(1.0);
+	}
+
 	// 区域选择绘制
-	if (mode == RANGEPOINT || mode == RANGELINE) {
+	if (mode == RANGEPOINT || mode == RANGELINE || mode == RANGEPOLYGON) {
 		glColor3d(0.0, 0.0, 0.0);
 		selectedRect.draw();
 		glColor3d(1.0, 0.0, 0.0);
@@ -393,7 +429,7 @@ void display() {
  */
 void mouse(int button, int state, int x, int y) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		if (mode == RANGEPOINT || mode == RANGELINE) {
+		if (mode == RANGEPOINT || mode == RANGELINE || mode == RANGEPOLYGON) {
 			if (firstPoint) {
 				selectedFeatures.clear();
 				corner[0] = hw6::Point(x, screenHeight - y);
@@ -418,7 +454,7 @@ void mouse(int button, int state, int x, int y) {
 void passiveMotion(int x, int y) {
 	corner[1] = hw6::Point(x, screenHeight - y);
 
-	if ((mode == RANGEPOINT || mode == RANGELINE) && !firstPoint) {
+	if ((mode == RANGEPOINT || mode == RANGELINE || mode == RANGEPOLYGON) && !firstPoint) {
 		corner[1] = hw6::Point(x, screenHeight - y);
 		transfromPt(corner[1]);
 		selectedRect = hw6::Envelope(min(corner[0].getX(), corner[1].getX()),
@@ -429,10 +465,18 @@ void passiveMotion(int x, int y) {
 
 		glutPostRedisplay();
 	}
-	else if (mode == NNPOINT || mode == NNLINE) {
+	else if (mode == NNPOINT || mode == NNLINE || mode == NNPOLYGON) {
 		hw6::Point p(x, screenHeight - y);
 		transfromPt(p);
 		NNQuery(p);
+
+		glutPostRedisplay();
+	}
+	else if (mode == KNNPOINT || mode == KNNLINE || mode == KNNPOLYGON) {
+		// [[optional]] k-NN查询
+		hw6::Point p(x, screenHeight - y);
+		transfromPt(p);
+		kNNQuery(p);
 
 		glutPostRedisplay();
 	}
@@ -488,6 +532,27 @@ void processNormalKeys(unsigned char key, int x, int y) {
 	case '-':
 		pointSize /= 1.1;
 		break;
+	// [[optional]] k-NN相关按键
+	case 'K':
+		mode = KNNLINE;
+		cout << "k-NN Line mode, k=" << kValue << endl;
+		break;
+	case 'k':
+		mode = KNNPOINT;
+		cout << "k-NN Point mode, k=" << kValue << endl;
+		break;
+	case '[':
+		// 减少k值
+		if (kValue > 1) {
+			kValue--;
+			cout << "k value decreased to " << kValue << endl;
+		}
+		break;
+	case ']':
+		// 增加k值
+		kValue++;
+		cout << "k value increased to " << kValue << endl;
+		break;
 	case '1':
 	case '2':
 	case '3':
@@ -511,6 +576,10 @@ int main(int argc, char* argv[]) {
 		<< "  s  : range search for stations\n"
 		<< "  N  : nearest road search\n"
 		<< "  n  : nearest station search\n"
+		<< "  K  : k-NN road search (k nearest roads)\n"
+		<< "  k  : k-NN station search (k nearest stations)\n"
+		<< "  [  : decrease k value\n"
+		<< "  ]  : increase k value\n"
 		<< "  B/b: Bicycle data\n"
 		<< "  T/t: Taxi data\n"
 		<< "  R/r: show Road\n"
@@ -521,13 +590,15 @@ int main(int argc, char* argv[]) {
 		<< "  2  : Test distance between Point and LineString\n"
 		<< "  3  : Test distance between Point and Polygon\n"
 		<< "  4  : Test tree construction\n"
-		<< "  5  : Test (your option here)\n"
+		<< "  5  : Test Spatial Join (Station-Road)\n"
+		<< "  6  : Test k-NN Query\n"
 		<< "  8  : Tree performance analysis\n"
 		<< "  ESC: quit\n"
 		<< endl;
 
 	pointTree = make_unique<TreeTy>();
 	roadTree = make_unique<TreeTy>();
+	polygonTree = make_unique<TreeTy>();  // [[optional]] 初始化多边形树
 
 	loadRoadData();
 
