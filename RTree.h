@@ -1,4 +1,4 @@
-﻿#ifndef RTREE_H_INCLUDED
+#ifndef RTREE_H_INCLUDED
 #define RTREE_H_INCLUDED
 
 #include "Geometry.h"
@@ -8,6 +8,8 @@
 #include <array>
 #include <queue>
 #include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "CMakeIn.h"
@@ -109,7 +111,24 @@ namespace hw6 {
 			else return nullptr;
 		}
 
+		// Spatial Join: 输出满足空间距离条件的所有几何特征对
+		// 正确性证明：
+		// 1. Filter阶段：对于集合A中的每个几何对象a，扩展其包围盒dist距离
+		// 2. 使用R树索引在集合B中查找与扩展包围盒相交的候选对象
+		// 3. Refine阶段：对候选集做精确距离判断，保证不遗漏任何满足条件的对
+		// 4. 由于包围盒扩展了dist距离，所有真正距离<=dist的对象必在候选集中
+		void spatialJoin(const std::vector<Feature>& A,
+			const std::vector<Feature>& B,
+			double dist,
+			std::vector<std::pair<Feature, Feature>>& result);
+
+		// [[optional]] k最邻近几何特征查询 (k-NN)
+		// 返回距离查询点最近的k个几何特征
+		bool kNNQuery(double x, double y, int k, std::vector<Feature>& features);
+
 		void draw() override { if (root != nullptr) root->draw(); }
+
+		const Envelope& getEnvelope() const { return bbox; }
 
 	public:
 		static void test(int t);

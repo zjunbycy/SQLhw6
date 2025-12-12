@@ -1,4 +1,4 @@
-﻿#ifndef COMMON_H_INCLUDED
+#ifndef COMMON_H_INCLUDED
 #define COMMON_H_INCLUDED
 
 #define Default 0
@@ -8,9 +8,13 @@
 #define NNLINE 4
 #define QUADTREE 5
 #define RTREE 6
-// 新增多边形模式
-#define RANGEPOLY 7
-#define NNPOLY 8
+
+// 附加题扩展模式
+#define RANGEPOLYGON 7    // 多边形数据的区域查询
+#define NNPOLYGON 8       // 多边形数据的最邻近查询
+#define KNNPOINT 9        // 点的k最邻近查询
+#define KNNLINE 10        // 线的k最邻近查询
+#define KNNPOLYGON 11     // 多边形的k最邻近查询
 
 #define TEST1 1
 #define TEST2 2
@@ -21,6 +25,6 @@
 #define TEST7 7
 #define TEST8 8
 
-//#define USE_RTREE
+#define USE_RTREE
 
 #endif
