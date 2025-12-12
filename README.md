@@ -45,10 +45,10 @@
 √void QuadNode::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
 √void QuadTree::rangeQuery(const Envelope &rect, std::vector<Feature> &features);
 √bool QuadTree::NNQuery(double x, double y, std::vector<Feature> &features);
-QuadNode *QuadNode::pointInLeafNode(double x, double y);
+√QuadNode *QuadNode::pointInLeafNode(double x, double y);
 √QuadNode *QuadTree::pointInLeafNode(double x, double y);
 
-自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
+√自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
 
 // 以下是附加题扩展要求
 [[optional]]
@@ -106,7 +106,7 @@ static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此
 
 
 ```cpp
-void rangeQuery(); //精准判断去重               叶晨宇
+√void rangeQuery(); //精准判断去重               叶晨宇
 void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
 ```
 

@@ -95,12 +95,18 @@ namespace hw6 {
 		}
 
 		virtual void draw() override;
+		void spatialJoin(const std::vector<Feature>& A,
+			const std::vector<Feature>& B,
+			double dist,
+			std::vector<std::pair<Feature, Feature>>& result);
 
 	public:
 		static void test(int t);
 
 		static void analyse();
 	};
+
+
 
 } // namespace hw6
 

@@ -16,6 +16,8 @@
 #include <map>
 #include <memory>
 #include <vector>
+#include <unordered_set>
+#include <filesystem> // 用于检查 shapefile 是否存在
 
 #ifdef USE_RTREE
 #include "RTree.h"
@@ -37,10 +39,12 @@ int mode;
 
 vector<hw6::Feature> features;
 vector<hw6::Feature> roads;
+vector<hw6::Feature> polygons; // 新增：多边形集合
 bool showRoad = true;
 
 unique_ptr<hw6::Tree> pointTree;
 unique_ptr<hw6::Tree> roadTree;
+unique_ptr<hw6::Tree> polyTree; // 新增多边形树
 bool showTree = false;
 
 hw6::Feature nearestFeature;
@@ -49,6 +53,8 @@ bool firstPoint = true;
 hw6::Point corner[2];
 hw6::Envelope selectedRect;
 vector<hw6::Feature> selectedFeatures;
+
+int knn_k = 1; // k-NN 的 k 值，默认 1
 
 /*
  * shapefile文件中name和geometry属性读取
@@ -226,6 +232,28 @@ void loadTaxiData() {
 }
 
 /*
+ * 读取多边形数据
+ */
+void loadPolygonData() {
+	// 以 PROJ_SRC_DIR "/data/polygon" 为基名查找 shp 文件
+	std::string base = std::string(PROJ_SRC_DIR) + "/data/polygon.shp";
+	if (!std::filesystem::exists(base)) {
+		cout << "Polygon shapefile not found at " << base << "，请确认路径或将数据放置到 data/polygon.*" << endl;
+		return;
+	}
+
+	vector<hw6::Geometry*> geom = readGeom(PROJ_SRC_DIR "/data/polygon");
+	polygons.clear();
+	for (size_t i = 0; i < geom.size(); ++i)
+		polygons.push_back(hw6::Feature(to_string(i), geom[i]));
+
+	cout << "polygon number: " << geom.size() << endl;
+	polyTree = make_unique<TreeTy>();
+	polyTree->setCapacity(20);
+	polyTree->constructTree(polygons);
+}
+
+/*
  * 区域查询
  */
 void rangeQuery() {
@@ -239,6 +267,21 @@ void rangeQuery() {
 
 	// refine step (精确判断时，需要去重，避免查询区域和几何对象的重复计算)
 	// TODO
+	selectedFeatures.clear();
+	// 使用几何指针去重（同一几何可能在候选集中出现多次）
+	std::unordered_set<const hw6::Geometry*> seen;
+	seen.reserve(candidateFeatures.size() * 2);
+
+	for (const auto& f : candidateFeatures) {
+		const hw6::Geometry* g = f.getGeom();
+		if (!g) continue;
+		// 如果未见过该几何，则进行精确相交测试并加入结果
+		if (seen.insert(g).second) {
+			if (g->intersects(selectedRect)) {
+				selectedFeatures.push_back(f);
+			}
+		}
+	}
 }
 
 /*

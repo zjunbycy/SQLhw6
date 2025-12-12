@@ -8,6 +8,9 @@
 #define NNLINE 4
 #define QUADTREE 5
 #define RTREE 6
+// 新增多边形模式
+#define RANGEPOLY 7
+#define NNPOLY 8
 
 #define TEST1 1
 #define TEST2 2
