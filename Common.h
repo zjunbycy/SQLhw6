@@ -25,6 +25,6 @@
 #define TEST7 7
 #define TEST8 8
 
-#define USE_RTREE
+//#define USE_RTREE
 
 #endif

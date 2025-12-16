@@ -279,10 +279,10 @@ namespace hw6 {
 
 		features.clear();
 
-		// 1. 遍历四叉树所有节点，计算 min over features of maxDistance2Envelope(x,y)
+		// 计算所有节点的最小 maxDistance2Envelope（遍历整棵树）
 		double minMaxDist = std::numeric_limits<double>::infinity();
 
-		// 显式栈遍历所有节点（避免 std::function 递归）
+		// 使用显式栈遍历所有节点
 		std::vector<QuadNode*> stack;
 		stack.reserve(64);
 		stack.push_back(root);
@@ -292,8 +292,7 @@ namespace hw6 {
 			stack.pop_back();
 			if (!node) continue;
 
-			size_t fn = node->getFeatureNum();
-			for (size_t i = 0; i < fn; ++i) {
+			for (size_t i = 0; i < node->getFeatureNum(); ++i) {
 				const Feature& f = node->getFeature(i);
 				double d = f.maxDistance2Envelope(x, y);
 				if (d < minMaxDist) minMaxDist = d;
@@ -307,13 +306,16 @@ namespace hw6 {
 			}
 		}
 
-		if (!std::isfinite(minMaxDist))
+		if (!std::isfinite(minMaxDist)) {
+			features.clear();
 			return false;
+		}
 
 		Envelope qbox(x - minMaxDist, x + minMaxDist, y - minMaxDist, y + minMaxDist);
-		rangeQuery(qbox, features);
+		// 调用已有的 rangeQuery（仅做 MBR 粗筛），返回候选集到 features
+		this->rangeQuery(qbox, features);
 
-		// 返回是否有候选；精确最近邻由上层 hw6::NNQuery 负责
+		// 注意：这里保持与 hw6.cpp 的约定——索引只返回候选集，精炼与去重留给 hw6.cpp
 		return !features.empty();
 	}
 
