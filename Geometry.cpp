@@ -154,6 +154,24 @@ namespace hw6 {
 		envelope = Envelope(minX, maxX, minY, maxY);
 	}
 
+	double LineString::distance(const Point* point) const {
+		// 计算点到线串的距离
+		if (this->numPoints() == 0) return 0.0;
+		if (this->numPoints() == 1) return this->getPointN(0).distance(point);
+
+		double mindist = this->getPointN(0).distance(point);
+		for (size_t i = 0; i < this->numPoints() - 1; ++i) {
+			double x1 = this->getPointN(i).getX();
+			double y1 = this->getPointN(i).getY();
+			double x2 = this->getPointN(i + 1).getX();
+			double y2 = this->getPointN(i + 1).getY();
+			double dist_seg = pointToSegmentDistance(point->getX(), point->getY(), x1, y1, x2, y2);
+			if (dist_seg < mindist)
+				mindist = dist_seg;
+		}
+		return mindist;
+	}
+
 	double LineString::distance(const LineString* line) const {
 		// TODO
 		// 处理空线串边界情况

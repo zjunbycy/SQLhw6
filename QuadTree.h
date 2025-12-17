@@ -12,15 +12,14 @@ namespace hw6 {
 		Envelope bbox;
 		QuadNode* children[4];
 		std::vector<Feature> features;
-		size_t nodeCapacity; // 新增：用于存储每个节点的容量
+		size_t nodeCapacity;
 
 	public:
 		QuadNode() = delete;
-		QuadNode(const Envelope& box) : bbox(box) {
+		QuadNode(const Envelope& box) : bbox(box), nodeCapacity(0) {
 			children[0] = children[1] = children[2] = children[3] = nullptr;
 		}
 
-		// 新增：带 capacity 的构造函数
 		QuadNode(const Envelope& box, size_t capacity) : bbox(box), nodeCapacity(capacity) {
 			children[0] = children[1] = children[2] = children[3] = nullptr;
 		}
