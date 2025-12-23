@@ -27,6 +27,8 @@ add_library(
 	"QuadTreeTest.cpp"
 	"RTree.cpp"
 	"RTreeTest.cpp"
+	"BPlusTree.cpp"        # 新增：B+树实现
+	"BPlusTreeTest.cpp"    # 新增：B+树测试
 )
 target_link_libraries(
 	${TARGET_NAME}

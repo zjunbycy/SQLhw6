@@ -134,7 +134,9 @@ namespace hw6 {
 		}
 
 		// Euclidean distance
-		virtual double distance(const Point* point) const;
+		virtual double distance(const Point* point) const {
+			return point->distance(this);
+		}
 		virtual double distance(const LineString* line) const;
 		virtual double distance(const Polygon* polygon) const;
 

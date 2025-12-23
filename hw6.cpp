@@ -19,7 +19,11 @@
 #include <unordered_set>
 #include <vector>
 
-#ifdef USE_RTREE
+// 根据宏定义选择使用哪种树结构
+#if defined(USE_BPLUSTREE)
+#include "BPlusTree.h"
+using TreeTy = hw6::BPlusTree;
+#elif defined(USE_RTREE)
 #include "RTree.h"
 using TreeTy = hw6::RTree;
 #else
@@ -596,9 +600,23 @@ int main(int argc, char* argv[]) {
 		<< "  ESC: quit\n"
 		<< endl;
 
-	pointTree = make_unique<TreeTy>();
-	roadTree = make_unique<TreeTy>();
-	polygonTree = make_unique<TreeTy>();  // [[optional]] 初始化多边形树
+	// 根据不同的树类型进行初始化
+#if defined(USE_BPLUSTREE)
+	cout << "Using BPlusTree (Z-Curve based spatial index)" << endl;
+	pointTree = make_unique<TreeTy>(20, 1024);  // capacity=20, gridSize=1024
+	roadTree = make_unique<TreeTy>(20, 1024);
+	polygonTree = make_unique<TreeTy>(20, 1024);
+#elif defined(USE_RTREE)
+	cout << "Using RTree" << endl;
+	pointTree = make_unique<TreeTy>(8);  // maxChildren=8
+	roadTree = make_unique<TreeTy>(8);
+	polygonTree = make_unique<TreeTy>(8);
+#else
+	cout << "Using QuadTree" << endl;
+	pointTree = make_unique<TreeTy>(5);  // capacity=5
+	roadTree = make_unique<TreeTy>(20);
+	polygonTree = make_unique<TreeTy>(20);
+#endif
 
 	loadRoadData();
 
