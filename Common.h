@@ -15,6 +15,7 @@
 #define KNNPOINT 9        // 点的k最邻近查询
 #define KNNLINE 10        // 线的k最邻近查询
 #define KNNPOLYGON 11     // 多边形的k最邻近查询
+#define BPLUSTREE 12      // B+树空间索引测试
 
 #define TEST1 1
 #define TEST2 2
@@ -25,6 +26,7 @@
 #define TEST7 7
 #define TEST8 8
 
-#define USE_RTREE
+//#define USE_RTREE
+#define USE_BPLUSTREE  
 
 #endif

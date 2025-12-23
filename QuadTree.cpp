@@ -9,104 +9,65 @@ namespace hw6 {
 	/*
 	 * QuadNode
 	 */
+	void QuadNode::insert(const Feature& feature, size_t capacity) {
+		if (isLeafNode()) {
+			// 叶节点:直接添加feature
+			add(feature);
+			// 检查是否超容量，需要分裂
+			if (features.size() > capacity) {
+				split(capacity);
+			}						
+		}
+		else {
+			// 内部节点:找到与feature包围盒相交的子节点并递归插入
+			const Envelope& fEnv = feature.getEnvelope();
+			for (int i = 0; i < 4; ++i) {
+				if (children[i] && children[i]->getEnvelope().intersect(fEnv)) {
+					children[i]->insert(feature, capacity);
+				}
+			}
+		}
+	}
+
 	void QuadNode::split(size_t capacity) {
+		// 清空现有子节点
 		for (int i = 0; i < 4; ++i) {
 			delete children[i];
 			children[i] = nullptr;
 		}
 
-		// Task construction
-		// TODO
-		double halfWidth = bbox.getWidth() / 2.0;
-		double halfHeight = bbox.getHeight() / 2.0;
-		double midX = bbox.getMinX() + halfWidth;
-		double midY = bbox.getMinY() + halfHeight;
+		// 计算四个象限的包围盒
+		double minX = bbox.getMinX();
+		double maxX = bbox.getMaxX();
+		double minY = bbox.getMinY();
+		double maxY = bbox.getMaxY();
+		double midX = (minX + maxX) / 2.0;
+		double midY = (minY + maxY) / 2.0;
 
-		// 1. 创建四个子节点的边界 (bbox)
-		// NW (Top-Left): MinX, MidX, MidY, MaxY
-		Envelope NW_bbox(bbox.getMinX(), midX, midY, bbox.getMaxY());
-		// NE (Top-Right): MidX, MaxX, MidY, MaxY
-		Envelope NE_bbox(midX, bbox.getMaxX(), midY, bbox.getMaxY());
-		// SW (Bottom-Left): MinX, MidX, MinY, MidY
-		Envelope SW_bbox(bbox.getMinX(), midX, bbox.getMinY(), midY);
-		// SE (Bottom-Right): MidX, MaxX, MinY, MidY
-		Envelope SE_bbox(midX, bbox.getMaxX(), bbox.getMinY(), midY);
+		// 创建四个子节点 (西南、东南、西北、东北)
+		children[0] = new QuadNode(Envelope(minX, midX, minY, midY), capacity); // 西南
+		children[1] = new QuadNode(Envelope(midX, maxX, minY, midY), capacity); // 东南
+		children[2] = new QuadNode(Envelope(minX, midX, midY, maxY), capacity); // 西北
+		children[3] = new QuadNode(Envelope(midX, maxX, midY, maxY), capacity); // 东北
 
-		// 2. 初始化四个子节点 (它们都是叶子节点)
-		children[0] = new QuadNode(NW_bbox);
-		children[1] = new QuadNode(NE_bbox);
-		children[2] = new QuadNode(SW_bbox);
-		children[3] = new QuadNode(SE_bbox);
-
-		// 3. 将当前节点中的所有Feature重新分配给子节点
-		// 改进策略：
-		// - 仅当某个子节点“完全包含”Feature的MBR时将其移动到该子节点
-		// - 如果没有任何子节点完全包含该Feature，或被多个子节点包含，则保留在父节点（避免丢失或重复）
-		std::vector<Feature> remaining;
-		remaining.reserve(features.size());
-
-		for (const Feature& feature : features) {
-			Envelope featureBBox = feature.getEnvelope();
-
-			int containCount = 0;
-			int lastIndex = -1;
+		// 将当前节点的features分配到相应的子节点
+		for (const Feature& f : features) {
+			const Envelope& fEnv = f.getEnvelope();
 			for (int i = 0; i < 4; ++i) {
-				if (children[i]->getEnvelope().contain(featureBBox)) {
-					++containCount;
-					lastIndex = i;
+				if (children[i]->getEnvelope().intersect(fEnv)) {
+					children[i]->add(f);
 				}
 			}
-
-			if (containCount == 1) {
-				// 唯一被某个子节点完全包含，移动到该子节点
-				children[lastIndex]->add(feature);
-			}
-			else {
-				// 无子节点或多个子节点包含 -> 保留在父节点
-				remaining.push_back(feature);
-			}
 		}
 
-		// 4. 将无法分配的要素保留在父节点
-		features = std::move(remaining);
+		// 清空当前节点的features
+		features.clear();
 
-		// 5. 如果某个子节点的要素超过 capacity，可以递归分裂（使用传入的 capacity）
+		// 递归分裂超容量的子节点
 		for (int i = 0; i < 4; ++i) {
-			if (children[i] && children[i]->features.size() > capacity) {
+			if (children[i]->getFeatureNum() > capacity) {
 				children[i]->split(capacity);
 			}
-		}
-		// isLeafNode() 将返回 false
-	
-	}
-
-	void hw6::QuadNode::insert(const Feature& feature, size_t capacity) {
-		const Envelope& fe = feature.getEnvelope();
-		if (!bbox.contain(fe))
-			return;
-
-		if (isLeafNode()) {
-			features.push_back(feature);
-			// 使用传入的 capacity 参数
-			if (capacity > 0 && features.size() > capacity) {
-				split(capacity);
-			}
-			return;
-		}
-
-		int containCount = 0;
-		int lastIndex = -1;
-		for (int i = 0; i < 4; ++i) {
-			if (children[i]->getEnvelope().contain(fe)) {
-				++containCount;
-				lastIndex = i;
-			}
-		}
-
-		if (containCount == 1) {
-			children[lastIndex]->insert(feature, capacity);
-		} else {
-			features.push_back(feature);
 		}
 	}
 
@@ -116,67 +77,26 @@ namespace hw6 {
 		}
 		else {
 			++interiorNum;
-			for (int i = 0; i < 4; ++i)
-				children[i]->countNode(interiorNum, leafNum);
+			for (int i = 0; i < 4; ++i) {
+				if (children[i]) {
+					children[i]->countNode(interiorNum, leafNum);
+				}
+			}
 		}
 	}
 
 	int QuadNode::countHeight(int height) {
 		++height;
 		if (!isLeafNode()) {
-			int cur = height;
+			int maxHeight = height;
 			for (int i = 0; i < 4; ++i) {
-				height = std::max(height, children[i]->countHeight(cur));
-			}
-		}
-		return height;
-	}
-
-	void QuadNode::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
-		if (!bbox.intersect(rect))
-			return;
-
-		// Task range query
-		// TODO
-		if (isLeafNode()) {
-			// 1. 如果是叶子节点，遍历其所有Feature
-			for (const Feature& feature : this->features) {
-				// 2. 粗粒度过滤：检查Feature的MBR是否与查询矩形相交
-				if (feature.getEnvelope().intersect(rect)) {
-					// 3. 收集到候选集
-					features.push_back(feature);
+				if (children[i]) {
+					maxHeight = std::max(maxHeight, children[i]->countHeight(height));
 				}
 			}
+			return maxHeight;
 		}
-		else {
-			// 4. 如果是内部节点，递归调用子节点的rangeQuery
-			for (int i = 0; i < 4; ++i) {
-				children[i]->rangeQuery(rect, features);
-			}
-		}
-	}
-
-	QuadNode* QuadNode::pointInLeafNode(double x, double y) {
-		// Task NN query
-		// TODO
-		// 1. 剪枝：如果当前节点不包含该点，返回空
-		if (!bbox.contain(x, y)) {
-			return nullptr;
-		}
-
-		// 2. 如果是叶子节点，返回自身
-		if (isLeafNode()) {
-			return this;
-		}
-
-		// 3. 如果是内部节点，递归查找子节点
-		for (int i = 0; i < 4; ++i) {
-			QuadNode* leaf = children[i]->pointInLeafNode(x, y);
-			if (leaf) {
-				return leaf;
-			}
-		}
-		return nullptr;		//保留更安全
+		return height;
 	}
 
 	void QuadNode::draw() {
@@ -184,9 +104,55 @@ namespace hw6 {
 			bbox.draw();
 		}
 		else {
-			for (int i = 0; i < 4; ++i)
-				children[i]->draw();
+			for (int i = 0; i < 4; ++i) {
+				if (children[i]) {
+					children[i]->draw();
+				}
+			}
 		}
+	}
+
+	void QuadNode::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
+		if (!bbox.intersect(rect))
+			return;
+
+		if (isLeafNode()) {
+			// 叶节点:检查每个feature的包围盒是否与查询区域相交
+			for (const Feature& f : this->features) {
+				if (f.getEnvelope().intersect(rect)) {
+					features.push_back(f);
+				}
+			}
+		}
+		else {
+			// 内部节点:递归查询相交的子节点
+			for (int i = 0; i < 4; ++i) {
+				if (children[i]) {
+					children[i]->rangeQuery(rect, features);
+				}
+			}
+		}
+	}
+
+	QuadNode* QuadNode::pointInLeafNode(double x, double y) {
+		if (!bbox.contain(x, y)) {
+			return nullptr;
+		}
+
+		if (isLeafNode()) {
+			return this;
+		}
+		else {
+			for (int i = 0; i < 4; ++i) {
+				if (children[i]) {
+					QuadNode* result = children[i]->pointInLeafNode(x, y);
+					if (result != nullptr) {
+						return result;
+					}
+				}
+			}
+		}
+		return nullptr;
 	}
 
 	/*
@@ -196,50 +162,26 @@ namespace hw6 {
 		if (features.empty())
 			return false;
 
-		// Task construction
-		// TODO
 		// 1. 计算所有 features 的联合包围盒
 		Envelope unionBBox = features[0].getEnvelope();
 		for (size_t i = 1; i < features.size(); ++i) {
 			unionBBox = unionBBox.unionEnvelope(features[i].getEnvelope());
 		}
 
-		// 2. 确定根节点（QuadTree）的最终包围盒 (通常会扩大到方形)
-		double minX = unionBBox.getMinX();
-		double maxX = unionBBox.getMaxX();
-		double minY = unionBBox.getMinY();
-		double maxY = unionBBox.getMaxY();
-
-		double width = maxX - minX;
-		double height = maxY - minY;
-		double maxDim = std::max(width, height);
-
-		// 扩大到正方形以避免长条形MBR导致的低效划分
-		// 居中扩展
-		double expandX = (maxDim - width) / 2.0;
-		double expandY = (maxDim - height) / 2.0;
-
-		bbox = Envelope(minX - expandX, maxX + expandX, minY - expandY, maxY + expandY);
+		// 2. 设置树的包围盒
+		bbox = unionBBox;
 
 		// 3. 初始化根节点
 		if (root) {
 			delete root;
 			root = nullptr;
 		}
-		// 使用计算出的、可能扩大后的包围盒作为根节点范围
 		root = new QuadNode(bbox, capacity);
 
-		// 4. 将所有 features 插入到根节点
+		// 4. 逐个插入 features
 		for (const Feature& feature : features) {
-			root->insert(feature,capacity);
+			root->insert(feature, capacity);
 		}
-
-		// 兼容性：如果 insert 未触发任何分裂（根仍为叶子）且输入数量超过 capacity，则强制 split 一次
-		if (features.size() > capacity && root->isLeafNode()) {
-			root->split(capacity);
-		}
-
-		//bbox = Envelope(-74.1, -73.8, 40.6, 40.8); // 注意此行代码需要更新为features的包围盒，或根节点的包围盒
 
 		return true;
 	}
@@ -260,29 +202,21 @@ namespace hw6 {
 	void QuadTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
 		features.clear();
 
-		// Task range query
-		// TODO
-
-		// filter step (选择查询区域与几何对象包围盒相交的几何对象)
 		if (root) {
 			root->rangeQuery(rect, features);
 		}
-		// 注意四叉树区域查询仅返回候选集，精炼步在hw6的rangeQuery中完成
 	}
 
 	bool QuadTree::NNQuery(double x, double y, std::vector<Feature>& features) {
 		if (!root || !(root->getEnvelope().contain(x, y)))
 			return false;
 
-		// Task NN query
-		// TODO
-
 		features.clear();
 
-		// 1. 遍历四叉树所有节点，计算 min over features of maxDistance2Envelope(x,y)
+		// 计算所有节点的最小 maxDistance2Envelope（遍历整棵树）
 		double minMaxDist = std::numeric_limits<double>::infinity();
 
-		// 显式栈遍历所有节点（避免 std::function 递归）
+		// 使用显式栈遍历所有节点
 		std::vector<QuadNode*> stack;
 		stack.reserve(64);
 		stack.push_back(root);
@@ -292,8 +226,7 @@ namespace hw6 {
 			stack.pop_back();
 			if (!node) continue;
 
-			size_t fn = node->getFeatureNum();
-			for (size_t i = 0; i < fn; ++i) {
+			for (size_t i = 0; i < node->getFeatureNum(); ++i) {
 				const Feature& f = node->getFeature(i);
 				double d = f.maxDistance2Envelope(x, y);
 				if (d < minMaxDist) minMaxDist = d;
@@ -307,13 +240,16 @@ namespace hw6 {
 			}
 		}
 
-		if (!std::isfinite(minMaxDist))
+		if (!std::isfinite(minMaxDist)) {
+			features.clear();
 			return false;
+		}
 
 		Envelope qbox(x - minMaxDist, x + minMaxDist, y - minMaxDist, y + minMaxDist);
-		rangeQuery(qbox, features);
+		// 调用已有的 rangeQuery（仅做 MBR 粗筛），返回候选集到 features
+		this->rangeQuery(qbox, features);
 
-		// 返回是否有候选；精确最近邻由上层 hw6::NNQuery 负责
+		// 注意：这里保持与 hw6.cpp 的约定——索引只返回候选集，精炼与去重留给 hw6.cpp
 		return !features.empty();
 	}
 

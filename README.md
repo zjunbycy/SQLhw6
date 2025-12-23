@@ -99,7 +99,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 
 ```cpp
 [[optional]]
-static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此扩展项需要同时实现四叉树的analyse()
+√static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此扩展项需要同时实现四叉树的analyse()
 ```
 
 ## hw6.cpp
@@ -107,7 +107,7 @@ static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此
 
 ```cpp
 √void rangeQuery(); //精准判断去重               叶晨宇
-void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
+√void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
 ```
 
 ## [[optional]] BPlusTree.cpp                  李晨硕、叶晨宇
