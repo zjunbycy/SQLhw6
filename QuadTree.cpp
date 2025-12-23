@@ -249,7 +249,7 @@ namespace hw6 {
 		// 调用已有的 rangeQuery（仅做 MBR 粗筛），返回候选集到 features
 		this->rangeQuery(qbox, features);
 
-		// 注意：这里保持与 hw6.cpp 的约定——索引只返回候选集，精炼与去重留给 hw6.cpp
+		// 索引只返回候选集，精炼与去重留给 hw6.cpp
 		return !features.empty();
 	}
 
