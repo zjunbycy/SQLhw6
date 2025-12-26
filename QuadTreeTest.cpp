@@ -1,4 +1,4 @@
-﻿#include "QuadTree.h"
+#include "QuadTree.h"
 #include "Common.h"
 #include <ctime>
 #include "CMakeIn.h"
@@ -294,6 +294,44 @@ namespace hw6 {
 			cout << "QuadTree Construction: " << cct << " / " << ncase
 				<< " tests are passed" << endl;
 		}
+		
+		// 新增 TEST5: Spatial Join (Station-Road)
+		else if (t == TEST5) {
+			cout << "TEST5: Spatial Join (Station-Road)" << endl;
+
+			// 读取 station 和 highway 数据
+			vector<Geometry*> geomA = readGeom(PROJ_SRC_DIR "/data/station");
+			vector<Geometry*> geomB = readGeom(PROJ_SRC_DIR "/data/highway");
+
+			vector<Feature> A, B;
+			A.reserve(geomA.size());
+			B.reserve(geomB.size());
+
+			for (size_t i = 0; i < geomA.size(); ++i)
+				A.push_back(Feature("", geomA[i]));
+			for (size_t i = 0; i < geomB.size(); ++i)
+				B.push_back(Feature("", geomB[i]));
+
+			// 使用 QuadTree 的 spatialJoin 接口
+			QuadTree qtree;
+			qtree.setCapacity(20);
+			vector<pair<Feature, Feature>> result;
+			double joinDist = 0.001; // 可按需调整
+			qtree.spatialJoin(A, B, joinDist, result);
+
+			cout << "Spatial Join (station-road) distance = " << joinDist
+				<< ", pairs found = " << result.size() << endl;
+
+			// 清理几何内存
+			for (size_t i = 0; i < geomA.size(); ++i)
+				delete geomA[i];
+			for (size_t i = 0; i < geomB.size(); ++i)
+				delete geomB[i];
+			geomA.clear();
+			geomB.clear();
+			}
+		
+
 		else if (t == TEST8) {
 			cout << "测试8: QuadTreeAnalysis" << endl;
 			analyse();
