@@ -1,4 +1,4 @@
-﻿#ifndef GEOMETRY_H_INCLUDED
+#ifndef GEOMETRY_H_INCLUDED
 #define GEOMETRY_H_INCLUDED
 
 #include <algorithm>
@@ -124,7 +124,10 @@ namespace hw6 {
 		virtual void constructEnvelope();
 
 		// Euclidean distance
-		virtual double distance(const Point* point) const {
+		virtual double distance(const Geometry* geom) const override {
+			return geom->distance(static_cast<const LineString*>(this));
+		}
+		virtual double distance(const Point* point) const override {
 			return point->distance(this);
 		}
 		virtual double distance(const LineString* line) const;
