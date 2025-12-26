@@ -26,9 +26,9 @@
 [[optional]] 
 自行实现 Polygon 的内环几何数据存储，并修改 Point 到 Polygon 的欧式距离计算
 [[optional]]
-√double LineString::distance(const LineString *line) const
+double LineString::distance(const LineString *line) const
 [[optional]]
-√double LineString::distance(const Polygon *polygon) const
+double LineString::distance(const Polygon *polygon) const
 [[optional]] 
 添加 MultiPoint、MultiLineString 和 MultiPolygon 类，同时给出正确性的证明
 
