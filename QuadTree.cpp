@@ -48,7 +48,7 @@ namespace hw6 {
 		children[0] = new QuadNode(Envelope(minX, midX, minY, midY), capacity); // 西南
 		children[1] = new QuadNode(Envelope(midX, maxX, minY, midY), capacity); // 东南
 		children[2] = new QuadNode(Envelope(minX, midX, midY, maxY), capacity); // 西北
-		children[3] = new QuadNode(Envelope(midX, maxX, midY, maxY), capacity); // 东方
+		children[3] = new QuadNode(Envelope(midX, maxX, midY, maxY), capacity); // 东北
 
 		// 将当前节点的features分配到相应的子节点
 		for (const Feature& f : features) {
@@ -249,7 +249,7 @@ namespace hw6 {
 		// 调用已有的 rangeQuery（仅做 MBR 粗筛），返回候选集到 features
 		this->rangeQuery(qbox, features);
 
-		// 注意：这里保持与 hw6.cpp 的约定——索引只返回候选集，精炼与去重留给 hw6.cpp
+		// 索引只返回候选集，精炼与去重留给 hw6.cpp
 		return !features.empty();
 	}
 

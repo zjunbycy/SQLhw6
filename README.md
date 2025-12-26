@@ -26,9 +26,9 @@
 [[optional]] 
 自行实现 Polygon 的内环几何数据存储，并修改 Point 到 Polygon 的欧式距离计算
 [[optional]]
-√double LineString::distance(const LineString *line) const
+double LineString::distance(const LineString *line) const
 [[optional]]
-√double LineString::distance(const Polygon *polygon) const
+double LineString::distance(const Polygon *polygon) const
 [[optional]] 
 添加 MultiPoint、MultiLineString 和 MultiPolygon 类，同时给出正确性的证明
 
@@ -74,13 +74,13 @@ mode == Polygon 实现多边形数据的最邻近查询
 
 
 ```cpp
-bool hw6::RTree::constructTree(const std::vector<Feature>& features)
+√bool hw6::RTree::constructTree(const std::vector<Feature>& features)
 
-void hw6::RNode::rangeQuery(const Envelope & rect, std::vector<Feature>& features);
-bool hw6::RTree::NNQuery(double x, double y, std::vector<Feature>& features)
-RNode* hw6::RNode::pointInLeafNode(double x, double y);
+√void hw6::RNode::rangeQuery(const Envelope & rect, std::vector<Feature>& features);
+√bool hw6::RTree::NNQuery(double x, double y, std::vector<Feature>& features)
+√RNode* hw6::RNode::pointInLeafNode(double x, double y);
 
-自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
+√自行添加接口，实现 Spatial Join，输出满足空间距离条件的所有几何特征对，同时给出正确性的证明
 
 // 以下是附加题扩展要求
 [[optional]]
@@ -89,7 +89,7 @@ RNode* hw6::RNode::pointInLeafNode(double x, double y);
 mode == Polygon 实现多边形数据的区域查询
 [[optional]]
 mode == Polygon 实现多边形数据的最邻近查询
-[[optional]]
+√[[optional]]
 实现点、线和多边形的k最邻近几何特征查询（k-NN）查询，可以交互调整k的值
 ```
 
@@ -99,7 +99,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 
 ```cpp
 [[optional]]
-static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此扩展项需要同时实现四叉树的analyse()
+√static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此扩展项需要同时实现四叉树的analyse()
 ```
 
 ## hw6.cpp
@@ -107,7 +107,7 @@ static void hw6::RTree::analyse(); // 用于与四叉树进行比较，选择此
 
 ```cpp
 √void rangeQuery(); //精准判断去重               叶晨宇
-void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
+√void NNQuery(hw6::Point p);  //精准判断去重     李晨硕
 ```
 
 ## [[optional]] BPlusTree.cpp                  李晨硕、叶晨宇
