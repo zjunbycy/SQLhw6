@@ -1,4 +1,4 @@
-﻿#include "QuadTree.h"
+#include "QuadTree.h"
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -280,6 +280,8 @@ namespace hw6 {
 		candidates.reserve(64);
 
 		for (const Feature& a : A) {
+			candidates.clear(); // 每个 a 单独收集候选，避免累加
+
 			// 扩展 a 的包围盒
 			const Envelope& eb = a.getEnvelope();
 			Envelope searchEnv(eb.getMinX() - dist, eb.getMaxX() + dist,
