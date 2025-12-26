@@ -26,5 +26,6 @@
 #define TEST8 8
 
 #define USE_RTREE
+//#define USE_BPLUSTREE  
 
 #endif
