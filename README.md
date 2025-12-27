@@ -89,7 +89,7 @@ mode == Polygon 实现多边形数据的最邻近查询
 mode == Polygon 实现多边形数据的区域查询
 [[optional]]
 mode == Polygon 实现多边形数据的最邻近查询
-[[optional]]
+√[[optional]]
 实现点、线和多边形的k最邻近几何特征查询（k-NN）查询，可以交互调整k的值
 ```
 

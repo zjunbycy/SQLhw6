@@ -14,6 +14,10 @@ extern void wrongMessage(const Point& pt1, const Point& pt2, double dis,
 	double res);
 extern void wrongMessage(Envelope e1, Envelope e2, Envelope cal, Envelope res);
 
+// 声明外部变量用于Spatial Join测试
+extern std::vector<Feature> features;
+extern std::vector<Feature> roads;
+
 namespace hw6 {
 
 	void RTree::test(int t) {
@@ -236,6 +240,82 @@ namespace hw6 {
 			//cout << "RTree Construction: " << cct << " / " << ncase
 			//     << " tests are passed" << endl;
 		}
+		else if (t == TEST5) {
+			// TEST5: Spatial Join (Station-Road)
+			cout << "TEST5: Spatial Join (Station-Road)" << endl;
+
+			// 读取 station 和 highway 数据
+			vector<Geometry*> geomA = readGeom(PROJ_SRC_DIR "/data/station");
+			vector<Geometry*> geomB = readGeom(PROJ_SRC_DIR "/data/highway");
+
+			vector<Feature> A, B;
+			A.reserve(geomA.size());
+			B.reserve(geomB.size());
+
+			for (size_t i = 0; i < geomA.size(); ++i)
+				A.push_back(Feature("", geomA[i]));
+			for (size_t i = 0; i < geomB.size(); ++i)
+				B.push_back(Feature("", geomB[i]));
+
+			// 使用 RTree 的 spatialJoin 接口
+			RTree rtree(8);
+			vector<pair<Feature, Feature>> result;
+			double joinDist = 0.001;
+			clock_t start_time = clock();
+			rtree.spatialJoin(A, B, joinDist, result);
+			clock_t end_time = clock();
+
+			cout << "Spatial Join (station-road) distance = " << joinDist
+				<< ", pairs found = " << result.size()
+				<< ", time = " << (end_time - start_time) / 1000.0 << "s" << endl;
+
+			// 清理几何内存
+			for (size_t i = 0; i < geomA.size(); ++i)
+				delete geomA[i];
+			for (size_t i = 0; i < geomB.size(); ++i)
+				delete geomB[i];
+			geomA.clear();
+			geomB.clear();
+		}
+		else if (t == TEST6) {
+			// TEST6: k-NN 查询测试
+			cout << "TEST6: k-NN Query Test" << endl;
+			
+			RTree rtree(8);
+			vector<Geometry*> geom = readGeom(PROJ_SRC_DIR "/data/station");
+			vector<string> name = readName(PROJ_SRC_DIR "/data/station");
+			vector<Feature> features;
+			
+			for (size_t i = 0; i < geom.size(); ++i)
+				features.push_back(Feature(name[i], geom[i]));
+			
+			rtree.constructTree(features);
+			
+			// 测试点（使用数据集中心附近的点）
+			Envelope bbox = rtree.getEnvelope();
+			double cx = (bbox.getMinX() + bbox.getMaxX()) / 2;
+			double cy = (bbox.getMinY() + bbox.getMaxY()) / 2;
+			
+			cout << "Query point: (" << cx << ", " << cy << ")" << endl;
+			
+			// 测试不同的k值
+			int kValues[] = { 1, 3, 5, 10 };
+			for (int k : kValues) {
+				vector<Feature> knnResult;
+				rtree.kNNQuery(cx, cy, k, knnResult);
+				
+				cout << "k=" << k << ", found " << knnResult.size() << " neighbors:" << endl;
+				Point queryPt(cx, cy);
+				for (size_t i = 0; i < knnResult.size(); ++i) {
+					double dist = knnResult[i].getGeom()->distance(&queryPt);
+					cout << "  " << (i+1) << ". " << knnResult[i].getName() 
+						 << ", distance: " << dist << endl;
+				}
+			}
+			
+			// 清理内存
+			for (auto* g : geom) delete g;
+		}
 		else if (t == TEST8) {
 			cout << "TEST8: RTreeAnalysis" << endl;
 			analyse();
@@ -247,9 +327,39 @@ namespace hw6 {
 	void forConstCapAnalyseRTree(const std::vector<Feature>& features, int childNum, int maxNum, int step) {
 		if (childNum <= maxNum) {
 			RTree rtree(childNum);
-			rtree.constructTree(features);
-
 			// TODO 与四叉树进行比较
+
+			// 构造R树，输出R树的节点数目和高度
+			clock_t start_time = clock();
+			rtree.constructTree(features);
+			clock_t end_time = clock();
+
+			int height = 0, interiorNum = 0, leafNum = 0;
+			rtree.countHeight(height);
+			rtree.countNode(interiorNum, leafNum);
+
+			std::cout << "MaxChildren " << childNum << "\n";
+			std::cout << "Height: " << height
+				<< " \tInterior node number: " << interiorNum
+				<< " \tLeaf node number: " << leafNum << "\n";
+			std::cout << "Construction time: "
+				<< (end_time - start_time) / 1000.0 << "s" << std::endl;
+
+			// 评估100000次随机最邻近几何特征查询的时间
+			double x, y;
+			std::vector<Feature> candidateFeatures;
+			start_time = clock();
+			for (int i = 0; i < 100000; ++i) {
+				x = -((rand() % 225) / 10000.0 + 73.9812);
+				y = (rand() % 239) / 10000.0 + 40.7247;
+				rtree.NNQuery(x, y, candidateFeatures);
+				// refine step 在 hw6.cpp 中完成，这里只统计索引过滤部分
+				candidateFeatures.clear();
+			}
+			end_time = clock();
+			std::cout << "NNQuery time: "
+				<< (end_time - start_time) / 1000.0 << "s" << std::endl
+				<< std::endl;
 
 			forConstCapAnalyseRTree(features, childNum + step, maxNum, step);
 		}
@@ -272,6 +382,8 @@ namespace hw6 {
 		srand(time(nullptr));
 
 		/*TODO:实现forConstCapAnalyseRTree */
+		// 与 QuadTree::analyse 类似，这里在 [70, 200] 范围内
+		// 变化 RTree 的 maxChildren 参数，分析其高度、节点数和 NNQuery 时间
 		forConstCapAnalyseRTree(features, 70, 200, 10);
 	}
 

@@ -1,4 +1,4 @@
-﻿#include "QuadTree.h"
+#include "QuadTree.h"
 #include "Common.h"
 #include <ctime>
 #include <set>           

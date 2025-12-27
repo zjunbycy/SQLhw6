@@ -1,4 +1,5 @@
 #include "RTree.h"
+#include <random>
 
 namespace hw6 {
 
@@ -136,20 +137,19 @@ namespace hw6 {
 			height = root->countHeight(height);
 	}
 
-	bool RTree::constructTree(const std::vector<Feature>& features) {
+bool RTree::constructTree(const std::vector<Feature>& features) {
 		// Task RTree construction
 		/* TODO */
-		// 按x轴（包围盒minX）顺序插入，节点选择面积增量最小原则，溢出使用二次分裂，种子为最左/最右
+		// 几何特征按 x 轴顺序逐个插入；节点选择面积增量最小；
+		// 溢出时采用二次分裂，种子为最左/最右；为增强平衡性，在相同 minX 的局部段内随机插入。
 		if (features.empty())
 			return false;
-
-		// 辅助：面积增量
+		//面积增量
 		auto areaEnlargement = [](const Envelope& nodeBox, const Envelope& box) {
 			Envelope u = nodeBox.unionEnvelope(box);
 			return u.getArea() - nodeBox.getArea();
 		};
-
-		// 辅助：从当前内部节点选择子树（面积增量最小，若相同选择面积更小）
+		//从当前内部节点选择子树（面积增量最小，若相同选择面积更小）
 		auto chooseSubtreeLocal = [&](RNode* node, const Envelope& box) -> RNode* {
 			RNode* best = nullptr;
 			double minEnl = std::numeric_limits<double>::max();
@@ -167,8 +167,7 @@ namespace hw6 {
 			}
 			return best;
 		};
-
-		// 辅助：向上更新bbox
+		//向上更新bbox
 		auto updateBboxUp = [&](RNode* node) {
 			while (node) {
 				if (node->isLeafNode()) {
@@ -218,7 +217,8 @@ namespace hw6 {
 			std::vector<char> used(all.size(), 0);
 			used[leftIdx] = used[rightIdx] = 1;
 
-			int minEntries = std::max(1, maxChildren / 2);
+			// 使用 ceil(maxChildren/2.0) 作为最小条目数
+			int minEntries = std::max(1, (maxChildren + 1) / 2);
 			int assigned = 2;
 			while (assigned < static_cast<int>(all.size())) {
 				// 若某组必须接收剩余所有元素以满足最小数目
@@ -292,7 +292,7 @@ namespace hw6 {
 			std::vector<char> used(all.size(), 0);
 			used[leftIdx] = used[rightIdx] = 1;
 
-			int minEntries = std::max(1, maxChildren / 2);
+			int minEntries = std::max(1, (maxChildren + 1) / 2);
 			int assigned = 2;
 			while (assigned < static_cast<int>(all.size())) {
 				int remaining = static_cast<int>(all.size()) - assigned;
@@ -338,17 +338,32 @@ namespace hw6 {
 			newInner->setEnvelope(b2);
 		};
 
-		// 按x轴顺序插入（minX升序）
+		// 按 x 轴排序
 		std::vector<Feature> ordered = features;
 		std::sort(ordered.begin(), ordered.end(), [](const Feature& a, const Feature& b) {
 			return a.getEnvelope().getMinX() < b.getEnvelope().getMinX();
 		});
 
+		// 对相同 minX 的局部段做随机乱序，以避免退化
+		std::mt19937 gen(static_cast<unsigned int>(std::random_device{}()));
+		size_t start = 0;
+		while (start < ordered.size()) {
+			double curMinX = ordered[start].getEnvelope().getMinX();
+			size_t end = start + 1;
+			while (end < ordered.size() && ordered[end].getEnvelope().getMinX() == curMinX)
+				++end;
+			if (end - start > 1) {
+				std::shuffle(ordered.begin() + static_cast<std::ptrdiff_t>(start),
+					ordered.begin() + static_cast<std::ptrdiff_t>(end), gen);
+			}
+			start = end;
+		}
+
 		// 初始化根为叶节点
 		root = new RNode(ordered[0].getEnvelope());
 		root->add(ordered[0]);
 
-		// 逐个插入features
+		// 逐个插入features（随机化后的顺序）
 		for (size_t i = 1; i < ordered.size(); ++i) {
 			const Feature& f = ordered[i];
 			const Envelope& fb = f.getEnvelope();
@@ -402,18 +417,19 @@ namespace hw6 {
 			}
 		}
 
-		// 更新整棵树的包围盒
+		// 直接使用一次随机插入构建的 R 树，不再做第二次 AVL 风格重建
 		bbox = root->getEnvelope();
 
 		return true;
 	}
+
 
 	void RTree::rangeQuery(const Envelope& rect, std::vector<Feature>& features) {
 		features.clear();
 		if (root != nullptr)
 			root->rangeQuery(rect, features);
 	}
-
+	
 	bool RTree::NNQuery(double x, double y, std::vector<Feature>& features) {
 		features.clear();
 		// Task NNQuery 
@@ -491,7 +507,7 @@ namespace hw6 {
 			}
 			else {
 				for (int i = 0; i < node->getChildNum(); ++i) {
-					nodeQueue.push(node->getChildNode(i));
+				 nodeQueue.push(node->getChildNode(i));
 				}
 			}
 		}
@@ -538,15 +554,11 @@ namespace hw6 {
 		
 		/*
 		 * Spatial Join 基于距离的空间关联
-		 * 正确性证明：
-		 * 1. Filter阶段：对于集合A中的每个几何对象a，将其包围盒扩展dist距离
-		 *    扩展后的包围盒 = [minX-dist, maxX+dist, minY-dist, maxY+dist]
-		 * 2. 使用R树索引在集合B中查找所有与扩展包围盒相交的几何对象作为候选集
-		 *    由于B中任何与a距离<=dist的对象b，其包围盒必然与a的扩展包围盒相交
-		 *    因此候选集不会遗漏任何满足条件的对
-		 * 3. Refine阶段：对候选集中的每个对象b，计算a和b的精确几何距离
-		 *    若距离<=dist，则(a,b)是满足条件的特征对
-		 * 4. 去重：使用指针集合避免同一几何对象重复计算
+		 * Filter 步骤：对集合 A 中每个几何对象 a，扩展其包围盒 dist 距离，
+		 *   使用 R 树在集合 B 中做范围查询，得到候选集合；
+		 * Refine 步骤：对候选集合计算精确几何距离，保留距离 <= dist 的配对；
+		 * 正确性：任意满足距离约束的配对，其几何对象的包围盒必与扩展后的
+		 *   包围盒相交，因此不会被 Filter 步骤丢弃。
 		 */
 		
 		result.clear();
@@ -554,7 +566,7 @@ namespace hw6 {
 		if (A.empty() || B.empty())
 			return;
 
-		// 构建用于 B 的R树索引（局部临时）
+		// 针对 B 构建局部 R 树索引
 		RTree treeB(this->maxChildren);
 		if (!treeB.constructTree(B)) {
 			return;
@@ -564,15 +576,16 @@ namespace hw6 {
 		candidates.reserve(64);
 
 		for (const Feature& a : A) {
-			// 扩展 a 的包围盒
+			candidates.clear(); // 每个 a 单独收集候选，避免累加
+
 			const Envelope& eb = a.getEnvelope();
 			Envelope searchEnv(eb.getMinX() - dist, eb.getMaxX() + dist,
 				eb.getMinY() - dist, eb.getMaxY() + dist);
 
-			// filter: 用 treeB 获取与扩展矩形相交的候选集
-			treeB.rangeQuery(searchEnv, candidates);
+			// Filter：用 treeB 在 B 中做范围查询
+		 treeB.rangeQuery(searchEnv, candidates);
 
-			// refine: 对候选集做精确距离判断，并去重（基于 Geometry 指针）
+			// Refine：使用精确距离，并基于 Geometry* 去重
 			std::unordered_set<const Geometry*> seenB;
 			seenB.reserve(candidates.size() * 2);
 
@@ -581,8 +594,7 @@ namespace hw6 {
 				const Geometry* ga = a.getGeom();
 				if (!ga || !gb) continue;
 
-				// 去重同一几何
-				if (!seenB.insert(gb).second) continue;
+				if (!seenB.insert(gb).second) continue; // 同一几何只检查一次
 
 				double d = ga->distance(gb);
 				if (d <= dist) {
