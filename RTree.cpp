@@ -142,6 +142,7 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 		/* TODO */
 		// 几何特征按 x 轴顺序逐个插入；节点选择面积增量最小；
 		// 溢出时采用二次分裂，种子为最左/最右；为增强平衡性，在相同 minX 的局部段内随机插入。
+		//输入检查
 		if (features.empty())
 			return false;
 		//面积增量
@@ -159,14 +160,8 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 				const Envelope& cb = c->getEnvelope();
 				double enl = areaEnlargement(cb, box);
 				double area = cb.getArea();
-				if (enl < minEnl || (enl == minEnl && area < minArea)) {
-					minEnl = enl;
-					minArea = area;
-					best = c;
-				}
-			}
-			return best;
-		};
+				if (enl < minEnl || (enl == minEnl && area < minArea)) {minEnl = enl;minArea = area;best = c;}
+			}return best;};
 		//向上更新bbox
 		auto updateBboxUp = [&](RNode* node) {
 			while (node) {
@@ -209,10 +204,8 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 			}
 
 			std::vector<Feature> g1, g2;
-			g1.push_back(all[leftIdx]);
-			g2.push_back(all[rightIdx]);
-			Envelope b1 = all[leftIdx].getEnvelope();
-			Envelope b2 = all[rightIdx].getEnvelope();
+			g1.push_back(all[leftIdx]);g2.push_back(all[rightIdx]);
+			Envelope b1 = all[leftIdx].getEnvelope();Envelope b2 = all[rightIdx].getEnvelope();
 
 			std::vector<char> used(all.size(), 0);
 			used[leftIdx] = used[rightIdx] = 1;
@@ -239,15 +232,12 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 				for (int i = 0; i < static_cast<int>(all.size()); ++i) {
 					if (used[i]) continue;
 					const Envelope& eb = all[i].getEnvelope();
-					double d1 = areaEnlargement(b1, eb);
-					double d2 = areaEnlargement(b2, eb);
-					double diff = std::abs(d1 - d2);
+					double d1 = areaEnlargement(b1, eb);double d2 = areaEnlargement(b2, eb);double diff = std::abs(d1 - d2);
 					if (diff > maxDiff) { maxDiff = diff; choose = i; }
 				}
 				if (choose == -1) break;
 				const Envelope& eb = all[choose].getEnvelope();
-				double d1 = areaEnlargement(b1, eb);
-				double d2 = areaEnlargement(b2, eb);
+				double d1 = areaEnlargement(b1, eb);double d2 = areaEnlargement(b2, eb);
 				if (d1 < d2 || (d1 == d2 && g1.size() <= g2.size())) {
 					g1.push_back(all[choose]); b1 = b1.unionEnvelope(eb);
 				} else {
@@ -284,10 +274,8 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 			if (leftIdx == rightIdx) rightIdx = (rightIdx + 1) % static_cast<int>(all.size());
 
 			std::vector<RNode*> g1, g2;
-			g1.push_back(all[leftIdx]);
-			g2.push_back(all[rightIdx]);
-			Envelope b1 = all[leftIdx]->getEnvelope();
-			Envelope b2 = all[rightIdx]->getEnvelope();
+			g1.push_back(all[leftIdx]);g2.push_back(all[rightIdx]);
+			Envelope b1 = all[leftIdx]->getEnvelope();Envelope b2 = all[rightIdx]->getEnvelope();
 
 			std::vector<char> used(all.size(), 0);
 			used[leftIdx] = used[rightIdx] = 1;
@@ -362,62 +350,37 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 		// 初始化根为叶节点
 		root = new RNode(ordered[0].getEnvelope());
 		root->add(ordered[0]);
-
 		// 逐个插入features（随机化后的顺序）
 		for (size_t i = 1; i < ordered.size(); ++i) {
-			const Feature& f = ordered[i];
-			const Envelope& fb = f.getEnvelope();
-
+			const Feature& f = ordered[i];const Envelope& fb = f.getEnvelope();
 			// 从根节点开始，选择最佳路径到达叶节点
 			RNode* node = root;
-			while (!node->isLeafNode()) {
-				node = chooseSubtreeLocal(node, fb);
-			}
-
+			while (!node->isLeafNode()) {node = chooseSubtreeLocal(node, fb);}
 			// 插入feature到叶节点
 			if (static_cast<int>(node->getFeatureNum()) < maxChildren) {
-				node->add(f);
-				node->setEnvelope(node->getEnvelope().unionEnvelope(fb));
-				updateBboxUp(node->getParent());
-			}
+				node->add(f);node->setEnvelope(node->getEnvelope().unionEnvelope(fb));updateBboxUp(node->getParent());}
 			else {
 				// 需要分裂
-				RNode* newLeaf = nullptr;
-				splitLeafQuadratic(node, f, newLeaf);
-				updateBboxUp(node);
-
+				RNode* newLeaf = nullptr;splitLeafQuadratic(node, f, newLeaf);updateBboxUp(node);
 				// 向上传播分裂
-				RNode* current = node;
-				RNode* newNode = newLeaf;
+				RNode* current = node;RNode* newNode = newLeaf;
 				while (current->getParent() != nullptr) {
 					RNode* parent = current->getParent();
 					if (parent->getChildNum() < maxChildren) {
-						parent->add(newNode);
-						updateBboxUp(parent);
-						newNode = nullptr;
-						break;
+						parent->add(newNode);updateBboxUp(parent);newNode = nullptr;break;
 					}
 					else {
 						// 分裂内部节点
-						RNode* newInternal = nullptr;
-						splitInnerQuadratic(parent, newNode, newInternal);
-						current = parent;
-						newNode = newInternal;
+						RNode* newInternal = nullptr;splitInnerQuadratic(parent, newNode, newInternal);current = parent;newNode = newInternal;
 					}
 				}
 
 				// 如果分裂传播到根节点
 				if (newNode != nullptr) {
 					Envelope newRootBox = root->getEnvelope().unionEnvelope(newNode->getEnvelope());
-					RNode* newRoot = new RNode(newRootBox);
-					newRoot->add(root);
-					newRoot->add(newNode);
-					root = newRoot;
-				}
+					RNode* newRoot = new RNode(newRootBox);newRoot->add(root);newRoot->add(newNode);root = newRoot;}
 			}
 		}
-
-		// 直接使用一次随机插入构建的 R 树，不再做第二次 AVL 风格重建
 		bbox = root->getEnvelope();
 
 		return true;
@@ -432,44 +395,77 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 	
 	bool RTree::NNQuery(double x, double y, std::vector<Feature>& features) {
 		features.clear();
-		// Task NNQuery 
-		/* TODO */
-		if(root == nullptr){return false;}
-		// filter step
-		// (使用maxDistance2Envelope函数，获得查询点到几何对象包围盒的最短的最大距离，然后区域查询获得候选集)
-		// 首先找到包含查询点的叶节点，或最近的叶节点
-		RNode* leafNode = root->pointInLeafNode(x, y);
-		double minMaxDist = std::numeric_limits<double>::max();
-		if (leafNode != nullptr && leafNode->getFeatureNum() > 0) {
-			// 在叶节点中找到最短的最大距离
-			for (size_t i = 0; i < leafNode->getFeatureNum(); ++i) {
-				double dist = leafNode->getFeature(i).maxDistance2Envelope(x, y);
-				minMaxDist = std::min(minMaxDist, dist);
+		// Task NNQuery
+		// 使用 R 树结构做基于包围盒的最近邻过滤，只返回候选集，精炼在 hw6.cpp 中完成
+		if (root == nullptr) return false;
+
+		// 点到包围盒的最小欧氏距离
+		auto minDistance2Envelope = [](double px, double py, const Envelope& e) -> double {
+			double cx = px;
+			if (cx < e.getMinX()) cx = e.getMinX();
+			else if (cx > e.getMaxX()) cx = e.getMaxX();
+
+			double cy = py;
+			if (cy < e.getMinY()) cy = e.getMinY();
+			else if (cy > e.getMaxY()) cy = e.getMaxY();
+
+			double dx = px - cx;
+			double dy = py - cy;
+			return std::sqrt(dx * dx + dy * dy);
+		};
+
+		using NodeEntry = std::pair<double, RNode*>;
+		struct NodeCmp {
+			bool operator()(const NodeEntry& a, const NodeEntry& b) const {
+				// 最小堆：距离小的优先
+				return a.first > b.first;
 			}
-		}
-		else {
-			// 查询点不在任何叶节点内，遍历所有叶节点找最小maxDistance
-			std::queue<RNode*> queue;
-			queue.push(root);
-			while (!queue.empty()) {
-				RNode* node = queue.front();
-				queue.pop();
-				if (node->isLeafNode()) {
-					for (size_t i = 0; i < node->getFeatureNum(); ++i) {
-						double dist = node->getFeature(i).maxDistance2Envelope(x, y);
-						minMaxDist = std::min(minMaxDist, dist);
+		};
+
+		std::priority_queue<NodeEntry, std::vector<NodeEntry>, NodeCmp> pq;
+
+		double rootMinDist = minDistance2Envelope(x, y, root->getEnvelope());
+		pq.emplace(rootMinDist, root);
+
+		// 当前找到的最小 maxDistance2Envelope 上界
+		double bestMaxDist = std::numeric_limits<double>::max();
+
+		while (!pq.empty()) {
+			double nodeMinDist = pq.top().first;
+			RNode* node = pq.top().second;
+			pq.pop();
+
+			// 剪枝：该节点的最小可能距离已经大于当前上界
+			if (nodeMinDist > bestMaxDist) continue;
+
+			if (node->isLeafNode()) {
+				const size_t fn = node->getFeatureNum();
+				for (size_t i = 0; i < fn; ++i) {
+					const Feature& f = node->getFeature(i);
+					double d = f.maxDistance2Envelope(x, y);
+					if (d < bestMaxDist) bestMaxDist = d;
+				}
+			} else {
+				const int cn = node->getChildNum();
+				for (int i = 0; i < cn; ++i) {
+					RNode* child = node->getChildNode(static_cast<size_t>(i));
+					if (!child) continue;
+					double childMinDist = minDistance2Envelope(x, y, child->getEnvelope());
+					if (childMinDist <= bestMaxDist) {
+						pq.emplace(childMinDist, child);
 					}
 				}
-				else {
-					for (int i = 0; i < node->getChildNum(); ++i) {
-						queue.push(node->getChildNode(i));
-					}
-				}
 			}
 		}
-		Envelope queryRect(x - minMaxDist, x + minMaxDist, y - minMaxDist, y + minMaxDist);
+
+		// 如果没有更新过 bestMaxDist，说明树中没有要素
+		if (bestMaxDist == std::numeric_limits<double>::max()) return false;
+
+		// 使用最终上界构造查询窗口，得到候选集
+		Envelope queryRect(x - bestMaxDist, x + bestMaxDist,
+			y - bestMaxDist, y + bestMaxDist);
 		rangeQuery(queryRect, features);
-		// 注意R树邻近查询仅返回候选集，精炼步在hw6的NNQuery中完成
+		// 注意：这里只做过滤，精确最近邻与去重在 hw6.cpp 中完成
 
 		return !features.empty();
 	}
@@ -487,71 +483,59 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 		};
 		std::priority_queue<std::pair<double, Feature>, 
 			std::vector<std::pair<double, Feature>>, decltype(cmp)> topK(cmp);
-
-		// 首先获取一个初始搜索半径
-		double searchRadius = std::numeric_limits<double>::max();
-		
-		// 遍历所有特征获取候选集
-		std::vector<Feature> allCandidates;
-		std::queue<RNode*> nodeQueue;
-		nodeQueue.push(root);
-		
-		while (!nodeQueue.empty()) {
-			RNode* node = nodeQueue.front();
-			nodeQueue.pop();
-			
-			if (node->isLeafNode()) {
-				for (size_t i = 0; i < node->getFeatureNum(); ++i) {
-					allCandidates.push_back(node->getFeature(i));
-				}
-			}
-			else {
-				for (int i = 0; i < node->getChildNum(); ++i) {
-				 nodeQueue.push(node->getChildNode(i));
-				}
-			}
-		}
-
-		// 去重并计算精确距离
-		std::unordered_set<const Geometry*> seen;
 		Point queryPoint(x, y);
-		
-		for (const Feature& f : allCandidates) {
-			const Geometry* geom = f.getGeom();
-			if (!geom) continue;
-			if (!seen.insert(geom).second) continue;
+		auto minDistance2Envelope = [](double px, double py, const Envelope& e) -> double {
+			double cx = px;
+			if (cx < e.getMinX()) cx = e.getMinX();
+			else if (cx > e.getMaxX()) cx = e.getMaxX();
 
-			double dist = geom->distance(&queryPoint);
-			
-			if (static_cast<int>(topK.size()) < k) {
-				topK.push(std::make_pair(dist, f));
-			}
-			else if (dist < topK.top().first) {
-				topK.pop();
-				topK.push(std::make_pair(dist, f));
-			}
+			double cy = py;
+			if (cy < e.getMinY()) cy = e.getMinY();
+			else if (cy > e.getMaxY()) cy = e.getMaxY();
+
+			double dx = px - cx;
+			double dy = py - cy;
+			return std::sqrt(dx * dx + dy * dy);
+		};
+
+		// node-priority queue (min-heap by node min-distance)
+		using NodeEntry = std::pair<double, RNode*>;
+		struct NodeCmp { bool operator()(const NodeEntry& a, const NodeEntry& b) const { return a.first > b.first; } };
+		std::priority_queue<NodeEntry, std::vector<NodeEntry>, NodeCmp> nodePQ;
+		double rootMin = minDistance2Envelope(x, y, root->getEnvelope());
+		nodePQ.emplace(rootMin, root);std::unordered_set<const Geometry*> seen;seen.reserve(256);
+		double bestKDist = std::numeric_limits<double>::infinity(); // current worst distance in top-k
+		while (!nodePQ.empty()) {
+			auto entry = nodePQ.top(); nodePQ.pop();double nodeMinDist = entry.first;RNode* node = entry.second;
+			// pruning: if minimal possible distance to this node is greater than current k-th best
+			if (nodeMinDist > bestKDist) break;
+			if (node->isLeafNode()) {
+				const size_t fn = node->getFeatureNum();
+				for (size_t i = 0; i < fn; ++i) {
+					const Feature& f = node->getFeature(i);const Geometry* geom = f.getGeom();if (!geom) continue;
+					if (!seen.insert(geom).second) continue; // 去重
+					double d = geom->distance(&queryPoint);
+					if (static_cast<int>(topK.size()) < k) {topK.push(std::make_pair(d, f));
+						if (static_cast<int>(topK.size()) == k) bestKDist = topK.top().first;}
+					else if (d < topK.top().first) {
+						topK.pop();topK.push(std::make_pair(d, f));bestKDist = topK.top().first;}}}
+			else {const int cn = node->getChildNum();
+				for (int i = 0; i < cn; ++i) {
+					RNode* child = node->getChildNode(static_cast<size_t>(i));
+					if (!child) continue;
+					double childMin = minDistance2Envelope(x, y, child->getEnvelope());
+					// only consider child if it may contain closer objects than current worst
+					if (childMin <= bestKDist) nodePQ.emplace(childMin, child);}}
 		}
-
+		if (topK.empty()) return false;
 		// 从优先队列中提取结果（需要反转顺序）
-		std::vector<std::pair<double, Feature>> temp;
-		while (!topK.empty()) {
-			temp.push_back(topK.top());
-			topK.pop();
-		}
-		
-		// 按距离从小到大排序
-		for (auto it = temp.rbegin(); it != temp.rend(); ++it) {
-			features.push_back(it->second);
-		}
-
-		return !features.empty();
-	}
+		std::vector<std::pair<double, Feature>> temp;while (!topK.empty()) { temp.push_back(topK.top()); topK.pop(); }
+		// 按距离从小到大排序并输出
+		for (auto it = temp.rbegin(); it != temp.rend(); ++it) {features.push_back(it->second);}
+		return !features.empty();}
 
 	void RTree::spatialJoin(const std::vector<Feature>& A,
-		const std::vector<Feature>& B,
-		double dist,
-		std::vector<std::pair<Feature, Feature>>& result) {
-		
+		const std::vector<Feature>& B,double dist,std::vector<std::pair<Feature, Feature>>& result) {
 		/*
 		 * Spatial Join 基于距离的空间关联
 		 * Filter 步骤：对集合 A 中每个几何对象 a，扩展其包围盒 dist 距离，
@@ -560,46 +544,31 @@ bool RTree::constructTree(const std::vector<Feature>& features) {
 		 * 正确性：任意满足距离约束的配对，其几何对象的包围盒必与扩展后的
 		 *   包围盒相交，因此不会被 Filter 步骤丢弃。
 		 */
-		
 		result.clear();
-
 		if (A.empty() || B.empty())
 			return;
-
 		// 针对 B 构建局部 R 树索引
 		RTree treeB(this->maxChildren);
 		if (!treeB.constructTree(B)) {
 			return;
 		}
-
-		std::vector<Feature> candidates;
-		candidates.reserve(64);
-
+		std::vector<Feature> candidates;candidates.reserve(64);
 		for (const Feature& a : A) {
 			candidates.clear(); // 每个 a 单独收集候选，避免累加
-
 			const Envelope& eb = a.getEnvelope();
 			Envelope searchEnv(eb.getMinX() - dist, eb.getMaxX() + dist,
-				eb.getMinY() - dist, eb.getMaxY() + dist);
-
+			eb.getMinY() - dist, eb.getMaxY() + dist);
 			// Filter：用 treeB 在 B 中做范围查询
-		 treeB.rangeQuery(searchEnv, candidates);
-
+			treeB.rangeQuery(searchEnv, candidates);
 			// Refine：使用精确距离，并基于 Geometry* 去重
 			std::unordered_set<const Geometry*> seenB;
 			seenB.reserve(candidates.size() * 2);
-
 			for (const Feature& b : candidates) {
-				const Geometry* gb = b.getGeom();
-				const Geometry* ga = a.getGeom();
+				const Geometry* gb = b.getGeom();const Geometry* ga = a.getGeom();
 				if (!ga || !gb) continue;
-
 				if (!seenB.insert(gb).second) continue; // 同一几何只检查一次
-
 				double d = ga->distance(gb);
-				if (d <= dist) {
-					result.emplace_back(a, b);
-				}
+				if (d <= dist) {result.emplace_back(a, b);}
 			}
 		}
 	}
